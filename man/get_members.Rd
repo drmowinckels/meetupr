@@ -26,7 +26,7 @@ A tibble with the following columns:
 \item status
 \item role
 \item created
-\item most_recent_visit
+\item last_access_time
 }
 }
 \description{
@@ -38,6 +38,6 @@ members <- get_members("rladies-remote")
 }
 }
 \references{
-\url{https://www.meetup.com/api/schema/#GroupMembership}
-\url{https://www.meetup.com/api/schema/#User}
+\url{https://www.meetup.com/api/schema/#Membership}
+\url{https://www.meetup.com/api/schema/#Member}
 }

@@ -12,7 +12,7 @@ meetup_auth(
   new_user = FALSE,
   key = getOption("meetupr.consumer_key"),
   secret = getOption("meetupr.consumer_secret"),
-  cache = getOption("meetupr.httr_oauth_cache", TRUE),
+  cache = getOption("meetupr.httr2_oauth_cache", TRUE),
   verbose = meetupr_verbose(),
   use_appdir = TRUE,
   token_path = NULL
@@ -30,14 +30,14 @@ stored as an \code{.rds} file.}
 
 \item{new_user}{logical, defaults to \code{FALSE}. Set to \code{TRUE} if you
 want to wipe the slate clean and re-authenticate with the same or different
-Meetup account. This disables the \code{.httr-oauth} file in current
+Meetup account. This disables the \code{.httr2-oauth} file in current
 working directory.}
 
 \item{key, secret}{the "Client ID" and "Client secret" for the application;
 defaults to the ID and secret built into the \code{meetupr} package}
 
 \item{cache}{logical indicating if \code{meetupr} should cache
-credentials in the default cache file \code{.httr-oauth} or \code{token_path}.}
+credentials in the default cache file \code{.httr2-oauth} or \code{token_path}.}
 
 \item{verbose}{logical; do you want informative messages? \code{TRUE} by default in
 interactive sessions. Can be toggled by the \code{meetupr.verbose} option.}
@@ -50,11 +50,11 @@ If \code{cache} is \code{FALSE} this is ignored.}
 this is ignored.}
 
 \item{clear_cache}{logical indicating whether to disable the
-\code{.httr-oauth} file in working directory, if such exists, by renaming
-to \code{.httr-oauth-SUSPENDED}}
+token file in working directory, if such exists, by renaming
+to \code{*-SUSPENDED}}
 }
 \value{
-a \code{request} object (an S3 class provided by \code{httr})
+an httr2_token object
 
 Either NULL or the path in which the token is saved.
 }
@@ -65,12 +65,12 @@ permission to operate on your behalf. By default, these user credentials are
 saved to a file in your home directory whose path is saved in \code{.Renviron}
 as \code{MEETUPR_PAT}.
 If you set \code{use_appdir} to \code{FALSE} but \code{cache} to \code{TRUE},
-they are cached in a file named \code{.httr-oauth} in the current working directory.
+they are cached in a file named \code{.httr2-oauth} in the current working directory.
 To control where the file is saved, use \code{token_path}.
 
 If token is not already available, call \code{\link{meetup_auth}} to either
-load from cache or initiate OAuth2.0 flow. Return the token -- not "bare"
-but, rather, prepared for inclusion in downstream requests.
+load from cache or initiate OAuth2.0 flow. Return the token for use in
+downstream requests.
 
 Suspend \code{\link{meetupr}}'s authorization to place requests to the Meetup
 APIs on behalf of the authenticated user.

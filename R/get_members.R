@@ -12,10 +12,10 @@
 #'    * status
 #'    * role
 #'    * created
-#'    * most_recent_visit
+#'    * last_access_time
 #' @references
-#' \url{https://www.meetup.com/api/schema/#GroupMembership}
-#' \url{https://www.meetup.com/api/schema/#User}
+#' \url{https://www.meetup.com/api/schema/#Membership}
+#' \url{https://www.meetup.com/api/schema/#Member}
 #' @examples
 #' \dontrun{
 #' members <- get_members("rladies-remote")
@@ -23,10 +23,10 @@
 #' @importFrom anytime anytime
 #' @export
 get_members <- function(
-    urlname,
-    ...,
-    extra_graphql = NULL,
-    token = meetup_token()
+  urlname,
+  ...,
+  extra_graphql = NULL,
+  token = meetup_token()
 ) {
   ellipsis::check_dots_empty()
 
@@ -36,19 +36,45 @@ get_members <- function(
     .token = token
   )
 
-  dt <- rename(dt,
-               id = node.id,
-               name = node.name,
-               member_url = node.memberUrl,
-               photo_link = node.memberPhoto.baseUrl,
-               status = metadata.status,
-               role = metadata.role,
-               created = metadata.joinedDate,
-               most_recent_visit = metadata.mostRecentVisitDate
+  if (is.null(dt) || nrow(dt) == 0) {
+    return(NULL)
+  }
+
+  # Apply field mappings from migration guide
+  dt <- rename(
+    dt,
+    # Member field mappings (User -> Member, Ticket -> RSVP)
+    id = node.id,
+    name = node.name,
+    member_url = node.memberUrl,
+    photo_link = node.memberPhoto.baseUrl, # Image -> Photo
+
+    # Membership field mappings (from migration guide)
+    status = metadata.status,
+    role = metadata.role,
+    join_time = metadata.joinedDate, # joinedDate -> joinTime
+    last_access_time = metadata.lastAccessTime, # mostRecentVisitDate -> lastAccessTime
+
+    # Support both old and new field names for backwards compatibility
+    created = metadata.joinedDate,
+    most_recent_visit = metadata.lastAccessTime
   )
 
-  dt$created = anytime::anytime(dt$created)
-  dt$most_recent_visit = anytime::anytime(dt$most_recent_visit)
+  # Handle cases where new field names might not exist yet
+  # Fallback to old field names if new ones aren't available
+  if (
+    !"metadata.lastAccessTime" %in% names(dt) &&
+      "metadata.mostRecentVisitDate" %in% names(dt)
+  ) {
+    dt <- rename(dt, last_access_time = metadata.mostRecentVisitDate)
+    dt <- rename(dt, most_recent_visit = metadata.mostRecentVisitDate)
+  }
+
+  # Date/time processing
+  dt$created <- anytime::anytime(dt$created)
+  dt$join_time <- anytime::anytime(dt$join_time)
+  dt$last_access_time <- anytime::anytime(dt$last_access_time)
+  dt$most_recent_visit <- anytime::anytime(dt$most_recent_visit)
+
   dt
 }
-

@@ -1,45 +1,21 @@
-# # TODO, once v3 api is no longer supported
-# * Remove most / all of `internals.R`
-# * Remove duplicated method names
-# * Make method names consistent: Ex `find_groups()` -> `get_groups()`
-# * Bump version to `0.3.0`
-# -----------------------------------
-# # Query size matters?!?
-# There is funniness in how many items are queried.
-# If single event has query size 80, Data Viz DC gets 121.
-# If query size is 100, the total size is 119
-# The result size is consistent, but it is not an off-by-one error.
-# IDK. Punting for now, but it should be addressed
-# ```r
-# x <- gql_events(urlname = "Data-Visualization-DC", firstPast =  80, queryUnified = FALSE, queryUpcoming = FALSE)
-# y <- gql_events(urlname = "Data-Visualization-DC", firstPast = 100, queryUnified = FALSE, queryUpcoming = FALSE)
-# testthat::expect_equal(x$id %in% y$id, rep(TRUE, nrow(x))) # NOT TRUE!!!
-# testthat::expect_equal(y$id %in% x$id, rep(TRUE, nrow(y))) # TRUE
-# ```
-# -----------------------------------
-# # Adding a new graphql method
-# 0. Add a new `graphql` file to query the `meetup.com` graphql API
-#   * Links
-#     * Learn about graphql: https://graphql.org/learn/
-#     * `meetup.com`'s schema: https://www.meetup.com/api/schema
-#     * `meetup.com`'s playground: https://www.meetup.com/api/playground
-#   * Suggestions:
-#     * For any queries that involve a cursor, add a `cursor` and `first` argument
-#     * Just because the query shape is the same, does not mean you can use a fragment on two different types of objects
-#     * Only query what you need. Use `<< extra_graphql >>` where appropriate to allow extra fields to be queried
-# 1. Create a function using `graphql_query_generator()`
-#   * See `gql_find_groups()` for a concise example
-#   * See help docs for `graphql_query_generator()` below for more details
-#   * Keep the data in a simple "list of items" structure as much as possible
-# 2. Add a wrapper function to call your generated function. Ex: `find_groups2()`
-#   * Here, transform the data from a "list of items" to a data.frame (or appropriate structure)
-# -----------------------------------
+# =============================================================================
+# GRAPHQL API CLIENT - HTTP Requests & Query Management
+# =============================================================================
+# This file handles all GraphQL API communication, authentication, and
+# query execution. Data processing utilities are in internals.R
 
+# =============================================================================
+# API CONFIGURATION
+# =============================================================================
 
+# API URL for GraphQL endpoint
+meetup_api_prefix <- function() {
+  Sys.getenv("MEETUP_API_URL", "https://api.meetup.com/gql-ext")
+}
 
-
-
-
+# =============================================================================
+# GRAPHQL REQUEST FUNCTIONS
+# =============================================================================
 
 # Capture all output of `str()` and return it as a single string
 capture_str <- function(x) {
@@ -59,29 +35,44 @@ data_to_tbl <- function(data) {
   )
 }
 
-
-
-
-
 #' Query the Meetup GraphQL API given a file and variables
 #'
 #' Constructs a single text string and passes the string and `...` variables to [`graphql_query`]
 #' @param .file File name (without extension) in `./inst/graphql`
 #' @param ... Variables to pass to the query
-#' @param .extra_graphql Extra GraphQL code to insert into the query. The location is different within each GraphQL file.
-#' @param .token See [`meetup_token()`] for details.
+#' @param .extra_graphql Extra GraphQL code to insert into the query
+#' @param .token See [`meetup_token()`] for details
 #' @noRd
-graphql_file <- function(.file, ..., .extra_graphql = NULL, .token = meetup_token()) {
-  # inspiration: https://github.com/tidyverse/tidyversedashboard/blob/2c6cf9ebe8da938c35f6e9fc184c3b30265f1082/R/utils.R#L2
-  file <- system.file(file.path("graphql", paste0(.file, ".graphql")), package = "meetupr")
-  query <- readChar(file, file.info(file)$size)
+graphql_file <- function(
+  .file,
+  ...,
+  .extra_graphql = NULL,
+  .token = meetup_token()
+) {
+  # Get GraphQL file path
+  file_path <- system.file(
+    file.path("graphql", paste0(.file, ".graphql")),
+    package = "meetupr"
+  )
+  query <- readChar(file_path, file.info(file_path)$size)
+
+  # Handle extra GraphQL insertion
   .extra_graphql <- .extra_graphql %||% ""
-  if (!is.null(.extra_graphql)) {
-    if (length(.extra_graphql) != 1 && is.character(.extra_graphql)) {
-      stop("`.extra_graphql` must be a single string")
-    }
+  if (
+    !is.null(.extra_graphql) &&
+      (length(.extra_graphql) != 1 || !is.character(.extra_graphql))
+  ) {
+    stop("`.extra_graphql` must be a single string")
   }
-  glued_query <- glue::glue_data(list(extra_graphql = .extra_graphql), query, .open = "<<", .close = ">>", trim = FALSE)
+
+  # Insert extra GraphQL and execute query
+  glued_query <- glue::glue_data(
+    list(extra_graphql = .extra_graphql),
+    query,
+    .open = "<<",
+    .close = ">>",
+    trim = FALSE
+  )
 
   graphql_query(.query = glued_query, ..., .token = .token)
 }
@@ -90,67 +81,73 @@ graphql_file <- function(.file, ..., .extra_graphql = NULL, .token = meetup_toke
 #'
 #' @param .query GraphQL query string
 #' @param ... Variables to pass to the query
-#' @param .token See [`meetup_token()`] for details.
-#' @return A list like structure directly from the API. Typically you'll want to use `$data`.
-#'   If any `$errors`` are found, an error will be thrown.
+#' @param .token See [`meetup_token()`] for details
+#' @return A list like structure directly from the API
 #' @noRd
 graphql_query <- function(.query, ..., .token = meetup_token()) {
   variables <- purrr::compact(rlang::list2(...))
 
+  # Early return for invalid variables
   if (length(variables) > 0 && !rlang::is_named(variables)) {
-    stop("Stop all GraphQL variables must be named. Variables:\n", capture_str(variables), call. = FALSE)
+    stop(
+      "All GraphQL variables must be named. Variables:\n",
+      capture_str(variables),
+      call. = FALSE
+    )
   }
 
-  ## From meetup.com website example:
-  # query='query { self { id name } }'
+  # Make request using updated endpoint
+  response <- make_graphql_request(.query, variables, .token)
 
-  # curl -X POST https://api.meetup.com/gql \
-  #   -H 'Authorization: Bearer {YOUR_TOKEN}' \
-  #   -H 'Content-Type: application/json' \
-  #   -d @- <<EOF
-  #     {
-  #       "query": "query { self { id name } }",
-  #       "variables": "{\"foo\": \"bar\"}"
-  #     }
-  # EOF
-
-  suppressMessages({
-    # Stop printing of message: `No encoding supplied: defaulting to UTF-8.`
-    # Message comes deep within gh:::gh_process_response via `content(response, as = "text")` should have `encode = "UTF-8"` param
-    response <- gh::gh(
-      "POST https://api.meetup.com/gql",
-      query = .query,
-      variables = variables,
-      .accept = "application/json",
-      .send_headers = c(
-        # 'Authorization: Bearer {YOUR_TOKEN}'
-        "Authorization" = paste0(
-          .token$auth_token$credentials$token_type,
-          " ",
-          .token$auth_token$credentials$access_token
-        )
-      )
-    )
-  })
-
+  # Early return if errors found
   if (!is.null(response$errors)) {
     stop("Meetup GraphQL API returned errors.\n", capture_str(response$errors))
   }
+
   response
 }
 
-#' Generic method to fetch, extract, and combine results.
-#'
-#' Will spawn a progress bar if many results are to be fetched. If there is only a single set of results, no progress bar will be displayed.
+#' Make GraphQL request using httr2
+#' @param .query GraphQL query string
+#' @param variables Named list of GraphQL variables
+#' @param .token httr2_token object
+#' @return GraphQL response as list
+#' @noRd
+make_graphql_request <- function(.query, variables, .token) {
+  make_httr2_request(.query, variables, .token)
+}
+
+#' Extract authorization header from httr2 token
+#' @noRd
+extract_auth_header <- function(.token) {
+  # Early return for testing environment
+  if (nzchar(Sys.getenv("MEETUPR_TESTING"))) {
+    return("Bearer test-token")
+  }
+
+  # Handle httr2 tokens
+  if (inherits(.token, "httr2_token")) {
+    return(paste0("Bearer ", .token$access_token))
+  }
+
+  # Handle mock tokens for testing
+  if (is.list(.token) && !is.null(.token$access_token)) {
+    return(paste0("Bearer ", .token$access_token))
+  }
+
+  stop("Invalid token type. Expected httr2_token object.")
+}
+
+#' Generic method to fetch, extract, and combine results
 #'
 #' @param file File to send to `graphql_file(.file=)`
-#' @param cursor_fn Function that takes the result of `graphql_file(.file=)`. This method should return a list of arguments (typically cursor related) to pass to the next API request. If the `cursor_fn` returns `NULL`, no more results will be fetched.
-#' @param total_fn Function that takes in a result and returns a total number of results. This number is used for the progress bar.
-#' @param pb_format Format to supply to a new [`progress::progress_bar`].
-#' @param extract_fn Function that takes the result of `graphql_file(.file=)` and returns a list of results to be combined via `combiner_fn`. Typically, the returned result is a list of information for each record.
-#' @param combiner_fn Function to merge two results of `extract_fn` together. The initial result is set to `NULL`.
-#' @param finalizer_fn Function that will run over the final result of `combiner_fn`. Typically, this is where the list of lists is turned into a tibble.
-#' @return A function that wraps around `graphql_file(.file = file, ..., .extra_graphql = .extra_graphql, .token = .token)` and passes through `...`, `.extra_graphql`, and `.token`.
+#' @param cursor_fn Function that returns next cursor arguments or NULL to stop
+#' @param total_fn Function that returns total number of results for progress bar
+#' @param extract_fn Function that extracts list of results from API response
+#' @param combiner_fn Function to merge results (default: append)
+#' @param finalizer_fn Function to process final combined results (default: data_to_tbl)
+#' @param pb_format Progress bar format string
+#' @return A function that wraps graphql_file with pagination
 #' @noRd
 graphql_query_generator <- function(
   file,
@@ -161,6 +158,7 @@ graphql_query_generator <- function(
   finalizer_fn = data_to_tbl,
   pb_format = "[:bar] :current/:total :eta"
 ) {
+  # Force evaluation of all closures
   force(file)
   force(cursor_fn)
   force(extract_fn)
@@ -169,33 +167,35 @@ graphql_query_generator <- function(
   force(total_fn)
   force(pb_format)
 
-  function(
-    ...,
-    .extra_graphql = NULL,
-    .token = meetup_token()
-  ) {
+  function(..., .extra_graphql = NULL, .token = meetup_token()) {
     ret <- NULL
     cursors <- list()
     pb <- NULL
-    while (TRUE) {
-      graphql_res <- graphql_file(.file = file, ..., !!!cursors, .extra_graphql = .extra_graphql, .token = .token)
-      cursors <- cursor_fn(graphql_res)
-      graphql_content <- extract_fn(graphql_res)
+
+    # Pagination loop with early termination
+    repeat {
+      # Make GraphQL request
+      graphql_res <- graphql_file(
+        .file = file,
+        ...,
+        !!!cursors,
+        .extra_graphql = .extra_graphql,
+        .token = .token
+      )
+
+      # Initialize progress bar on first iteration
       if (is.null(pb)) {
-        pb <- progress::progress_bar$new(
-          total = total_fn(graphql_res),
-          format = paste0(file, " ", pb_format)
-        )
-        on.exit({
-          # Make sure the pb is closed when exiting
-          pb$terminate()
-        }, add = TRUE)
+        pb <- create_progress_bar(file, total_fn(graphql_res), pb_format)
+        on.exit(pb$terminate(), add = TRUE)
       }
 
+      # Extract and combine results
+      graphql_content <- extract_fn(graphql_res)
       ret <- combiner_fn(ret, graphql_content)
       pb$tick(length(graphql_content))
 
-      # If there is no more data to traverse, quit
+      # Check for more data - early exit if none
+      cursors <- cursor_fn(graphql_res)
       if (length(cursors) == 0) break
     }
 
@@ -203,18 +203,30 @@ graphql_query_generator <- function(
   }
 }
 
+#' Create progress bar with safe defaults
+#' @noRd
+create_progress_bar <- function(file, total, pb_format) {
+  # Handle infinite totals
+  if (is.infinite(total) || is.na(total)) {
+    total <- 100 # Use arbitrary total for infinite results
+    pb_format <- gsub(":total", "??", pb_format, fixed = TRUE)
+  }
+
+  progress::progress_bar$new(
+    total = total,
+    format = paste0(file, " ", pb_format)
+  )
+}
+
+# =============================================================================
+# GraphQL Query Functions (using early returns)
+# =============================================================================
 
 gql_health_check <- graphql_query_generator(
   "health_check",
-  cursor_fn = function(response) {
-    NULL
-  },
-  total_fn = function(x) {
-    1
-  },
-  extract_fn = function(x) {
-    x$data$healthCheck
-  },
+  cursor_fn = function(response) NULL, # No pagination
+  total_fn = function(x) 1,
+  extract_fn = function(x) x$data$healthCheck,
   finalizer_fn = unlist,
   pb_format = ":current/:total"
 )
@@ -223,105 +235,95 @@ gql_events <- graphql_query_generator(
   "find_events",
   cursor_fn = function(x) {
     ret <- list()
-    hasACursor <- FALSE
+    has_cursor <- FALSE
     groupByUrlname <- x$data$groupByUrlname
-    add_cursor_info <- function(page_name, arg_name) {
+
+    # Check each event type for next page
+    event_types <- list(
+      c("unifiedEvents", "Unified"),
+      c("upcomingEvents", "Upcoming"),
+      c("pastEvents", "Past"),
+      c("draftEvents", "Draft")
+    )
+
+    for (event_type in event_types) {
+      page_name <- event_type[1]
+      arg_name <- event_type[2]
       info <- groupByUrlname[[page_name]]$pageInfo
 
       if (!is.null(info) && info$hasNextPage) {
-        hasACursor <<- TRUE
-        ret[[paste0("cursor", arg_name)]] <<- info$endCursor
+        has_cursor <- TRUE
+        ret[[paste0("cursor", arg_name)]] <- info$endCursor
       } else {
-        ret[[paste0("query", arg_name)]] <<- FALSE
+        ret[[paste0("query", arg_name)]] <- FALSE
       }
     }
-    add_cursor_info("unifiedEvents", "Unified")
-    add_cursor_info("upcomingEvents", "Upcoming")
-    add_cursor_info("pastEvents", "Past")
-    add_cursor_info("draftEvents", "Draft")
 
-    if (hasACursor) {
-      ret
-    } else {
-      NULL
-    }
+    if (has_cursor) ret else NULL
   },
   total_fn = function(x) {
     groupByUrlname <- x$data$groupByUrlname
     sum(c(
-      groupByUrlname$unifiedEvents$count,
-      groupByUrlname$upcomingEvents$count,
-      groupByUrlname$pastEvents$count,
-      groupByUrlname$draftEvents$count
+      groupByUrlname$unifiedEvents$count %||% 0,
+      groupByUrlname$upcomingEvents$count %||% 0,
+      groupByUrlname$pastEvents$count %||% 0,
+      groupByUrlname$draftEvents$count %||% 0
     ))
   },
   extract_fn = function(x) {
     groupByUrlname <- x$data$groupByUrlname
-    get_nodes <- function(edge_name, event_type) {
-      edges <- groupByUrlname[[edge_name]]$edges
-      lapply(edges, `[[`, "node")
+
+    # Extract nodes from each event type
+    event_types <- c(
+      "unifiedEvents",
+      "upcomingEvents",
+      "pastEvents",
+      "draftEvents"
+    )
+    all_events <- list()
+
+    for (event_type in event_types) {
+      edges <- groupByUrlname[[event_type]]$edges
+      if (!is.null(edges)) {
+        nodes <- lapply(edges, `[[`, "node")
+        all_events <- append(all_events, nodes)
+      }
     }
 
-    events <- unlist(
-      list(
-        get_nodes("unifiedEvents", "unified"),
-        get_nodes("upcomingEvents", "upcoming"),
-        get_nodes("pastEvents", "past"),
-        get_nodes("draftEvents", "draft")
-      ),
-      recursive = FALSE
-    )
-
-    events <- add_country_name(events, get_country = function(event) event$venue$country)
-    events
+    # Add country names and return
+    add_country_name(all_events, get_country = function(event) {
+      event$venue$country
+    })
   },
   pb_format = "[:bar] :current/:total :eta"
 )
+
 
 gql_find_groups <- graphql_query_generator(
   "find_groups",
   cursor_fn = function(x) {
     pageInfo <- x$data$keywordSearch$pageInfo
-    if (pageInfo$hasNextPage) {
-      list(cursor = pageInfo$endCursor)
-    } else {
-      NULL
-    }
+    if (pageInfo$hasNextPage) list(cursor = pageInfo$endCursor) else NULL
   },
-  total_fn = function(x) {
-    x$data$keywordSearch$count
-    Inf
-  },
+  total_fn = function(x) x$data$keywordSearch$count %||% Inf,
   extract_fn = function(x) {
     groups <- lapply(x$data$keywordSearch$edges, function(item) {
       item$node$result
     })
-    groups <- add_country_name(groups, get_country = function(group) group$country)
-    groups
+    add_country_name(groups, get_country = function(group) group$country)
   },
   pb_format = "- :current/?? :elapsed :spin"
 )
-
 
 gql_get_members <- graphql_query_generator(
   "find_members",
   cursor_fn = function(x) {
     pageInfo <- x$data$groupByUrlname$memberships$pageInfo
-    if (pageInfo$hasNextPage) {
-      list(cursor = pageInfo$endCursor)
-    } else {
-      NULL
-    }
+    if (pageInfo$hasNextPage) list(cursor = pageInfo$endCursor) else NULL
   },
-  total_fn = function(x) {
-    x$data$groupByUrlname$memberships$count
-    Inf
-  },
+  total_fn = function(x) x$data$groupByUrlname$memberships$count %||% Inf,
   extract_fn = function(x) {
-    members <- lapply(x$data$groupByUrlname$memberships$edges, function(item) {
-      item
-    })
-    members
+    lapply(x$data$groupByUrlname$memberships$edges, identity)
   },
   pb_format = "- :current/?? :elapsed :spin"
 )
@@ -330,21 +332,11 @@ gql_get_event_attendees <- graphql_query_generator(
   "find_attendees",
   cursor_fn = function(x) {
     pageInfo <- x$data$event$tickets$pageInfo
-    if (pageInfo$hasNextPage) {
-      list(cursor = pageInfo$endCursor)
-    } else {
-      NULL
-    }
+    if (pageInfo$hasNextPage) list(cursor = pageInfo$endCursor) else NULL
   },
-  total_fn = function(x) {
-    x$data$event$tickets$count
-    Inf
-  },
+  total_fn = function(x) x$data$event$tickets$count %||% Inf,
   extract_fn = function(x) {
-    attendees <- lapply(x$data$event$tickets$edges, function(item) {
-      item$node$user
-    })
-    attendees
+    lapply(x$data$event$tickets$edges, function(item) item$node$user)
   },
   pb_format = "- :current/?? :elapsed :spin"
 )
@@ -353,63 +345,36 @@ gql_get_event_rsvps <- graphql_query_generator(
   "find_rsvps",
   cursor_fn = function(x) {
     pageInfo <- x$data$event$tickets$pageInfo
-    if (pageInfo$hasNextPage) {
-      list(cursor = pageInfo$endCursor)
-    } else {
-      NULL
-    }
+    if (pageInfo$hasNextPage) list(cursor = pageInfo$endCursor) else NULL
   },
-  total_fn = function(x) {
-    x$data$event$tickets$count
-    Inf
-  },
+  total_fn = function(x) x$data$event$tickets$count %||% Inf,
   extract_fn = function(x) {
-    attendees <- lapply(x$data$event$tickets$edges, function(item) {
-      item$node
-    })
-    attendees
+    lapply(x$data$event$tickets$edges, function(item) item$node)
   },
   pb_format = "- :current/?? :elapsed :spin"
 )
 
 gql_get_event_comments <- graphql_query_generator(
   "find_event_comments",
-  cursor_fn = function(response) {
-    NULL
-  },
-  total_fn = function(x) {
-    x$data$event$comments$count
-    Inf
-  },
+  cursor_fn = function(response) NULL, # No pagination for comments
+  total_fn = function(x) x$data$event$comments$count %||% Inf,
   extract_fn = function(x) {
-    comments <- lapply(x$data$event$comments$edges, function(item) {
-      item$node
-    })
-    comments
+    lapply(x$data$event$comments$edges, function(item) item$node)
   },
   pb_format = "- :current/?? :elapsed :spin"
 )
-
 
 gql_get_pro_groups <- graphql_query_generator(
   "find_pro_groups",
   cursor_fn = function(x) {
     pageInfo <- x$data$proNetworkByUrlname$groupsSearch$pageInfo
-    if (pageInfo$hasNextPage) {
-      list(cursor = pageInfo$endCursor)
-    } else {
-      NULL
-    }
+    if (pageInfo$hasNextPage) list(cursor = pageInfo$endCursor) else NULL
   },
-  total_fn = function(x) {
-    x$data$proNetworkByUrlname$groupsSearch$count
-    Inf
-  },
+  total_fn = function(x) x$data$proNetworkByUrlname$groupsSearch$count %||% Inf,
   extract_fn = function(x) {
-    groups <- lapply(x$data$proNetworkByUrlname$groupsSearch$edges, function(item) {
+    lapply(x$data$proNetworkByUrlname$groupsSearch$edges, function(item) {
       item$node
     })
-    groups
   },
   pb_format = "- :current/?? :elapsed :spin"
 )
@@ -418,100 +383,49 @@ gql_get_pro_events <- graphql_query_generator(
   "find_pro_events",
   cursor_fn = function(x) {
     pageInfo <- x$data$proNetworkByUrlname$eventsSearch$pageInfo
-    if (pageInfo$hasNextPage) {
-      list(cursor = pageInfo$endCursor)
-    } else {
-      NULL
-    }
+    if (pageInfo$hasNextPage) list(cursor = pageInfo$endCursor) else NULL
   },
-  total_fn = function(x) {
-    x$data$proNetworkByUrlname$eventsSearch$count
-    Inf
-  },
+  total_fn = function(x) x$data$proNetworkByUrlname$eventsSearch$count %||% Inf,
   extract_fn = function(x) {
-    events <- lapply(x$data$proNetworkByUrlname$eventsSearch$edges, function(item) {
+    lapply(x$data$proNetworkByUrlname$eventsSearch$edges, function(item) {
       item$node
     })
-    events
   },
   pb_format = "- :current/?? :elapsed :spin"
 )
 
+# =============================================================================
+# Country Code Utilities
+# =============================================================================
 
-# Cache the country code to name conversion as the conversion is consistent
+# Cache the country code to name conversion
 country_code_mem <- local({
   cache <- list()
   function(country) {
-    val <- cache[[country]]
-    if (!is.null(val)) return(val)
+    # Early return for cached values
+    if (!is.null(cache[[country]])) {
+      return(cache[[country]])
+    }
 
-    val <-
-      countrycode::countrycode(
-        country,
-        "iso2c",
-        "country.name"
-      )
+    # Convert and cache
+    val <- countrycode::countrycode(country, "iso2c", "country.name")
     cache[[country]] <<- val
     val
   }
 })
 
-# Adds the `country_name` field given the two letter country value found from `get_country`
-add_country_name <- function(
-  groups,
-  get_country = function(group) group$country
-) {
-  lapply(groups, function(group) {
-    country <- get_country(group)
-    group$country_name <-
-      if (length(country) == 0 || nchar(country) == 0) {
-        ""
-      } else {
-        country_code_mem(country)
-      }
-    group
+# Adds the `country_name` field given the two letter country value
+add_country_name <- function(items, get_country) {
+  lapply(items, function(item) {
+    country <- get_country(item)
+
+    # Early return for missing/empty country
+    if (length(country) == 0 || nchar(country) == 0) {
+      item$country_name <- ""
+      return(item)
+    }
+
+    item$country_name <- country_code_mem(country)
+    item
   })
-}
-
-
-
-
-# Manual checking
-if (FALSE) {
-  x <- gql_health_check(); utils::str(x)
-
-  x <- get_events(urlname = "Data-Visualization-DC"); utils::str(x)
-  x <- get_events(urlname = "R-Users"); utils::str(x)
-
-  x <- get_events(urlname = "Data-Science-DC"); utils::str(x)
-
-  x <- get_events(urlname = "Data-Science-DC", extra_graphql = "host { name }"); utils::str(x)
-
-  x <- get_members("rladies-remote"); utils::str(x)
-
-  x <- get_event_rsvps(id = "103349942!chp"); utils::str(x)
-
-  x <- get_event_attendees(id = "103349942!chp"); utils::str(x)
-
-  x <- get_event_comments(id = "103349942!chp"); utils::str(x)
-
-  x <- meetup_query('
-                      query($eventId: ID = "276754274") {
-                        event(id: $eventId) {
-                          title
-                          description
-                          dateTime
-                        }
-                      }
-                   ')
-
-  x <- get_pro_groups("rladies"); utils::str(x)
-
-  x <- get_pro_events("rladies"); utils::str(x)
-
-  x <- get_pro_events("rladies", status = "UPCOMING"); utils::str(x)
-
-  x <- graphql_file("location", lat = 10.54, lon = -66.93); utils::str(x)
-
-  x <- find_groups(topic_category_id = 546, query = "R-Ladies"); utils::str(x)
 }
