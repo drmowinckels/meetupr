@@ -28,7 +28,7 @@ Get the attendees for a specified event
 }
 \examples{
 \dontrun{
-attendees <- get_event_attendees(id = "103349942!chp")
+attendees <- get_event_attendees(id = "103349942")
 }
 }
 \references{

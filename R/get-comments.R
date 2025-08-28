@@ -40,12 +40,14 @@ get_event_comments <- function(
   process_datetime_fields(dt, "created")
 }
 
-gql_get_event_comments <- meetup_query_generator(
-  "find_event_comments",
-  cursor_fn = function(response) NULL,
-  total_fn = function(x) x$data$event$comments$count %||% Inf,
-  extract_fn = function(x) {
-    lapply(x$data$event$comments$edges, function(item) item$node)
-  },
-  pb_format = "- :current/?? :elapsed :spin"
-)
+gql_get_event_comments <- function(...) {
+  meetup_query_generator(
+    "find_event_comments",
+    ...,
+    cursor_fn = function(response) NULL,
+    total_fn = function(x) x$data$event$comments$count %||% Inf,
+    extract_fn = function(x) {
+      lapply(x$data$event$comments$edges, function(item) item$node)
+    }
+  )
+}

@@ -1,8 +1,6 @@
 query keywordSearch(
-  # $topicCategoryId: Int! = 546
   $topicCategoryId: Int = null
   $searchSources: [SearchSources!]! = [GROUPS]
-  # $query: String! = "R-Ladies"
   $query: String!
   $lat: Float = 0
   $lon: Float = 0
@@ -10,12 +8,12 @@ query keywordSearch(
   $first: Int = 1000
   $cursor: String
 ) {
-  keywordSearch(
+  groupSearch(
     input: { first: $first, after: $cursor }
     filter: {
       query: $query
-      lat: $lat
-      lon: $lon
+      latitude: $lat
+      longitude: $lon
       radius: $radius
       topicCategoryId: $topicCategoryId
       source: $searchSources
@@ -25,11 +23,9 @@ query keywordSearch(
       hasNextPage
       endCursor
     }
-    count
+    totalCount
     edges {
-      # cursor
       node {
-        # id
         result {
           ... on Group {
             id
@@ -44,21 +40,21 @@ query keywordSearch(
               status
             }
             memberships {
-              count
+              totalCount
             }
             foundedDate
             timezone
             joinMode
             who: customMemberLabel
             isPrivate
-            category: topicCategory {
+            activeTopics {
               id
               name
             }
-            << extra_graphql >>
           }
         }
       }
     }
   }
 }
+

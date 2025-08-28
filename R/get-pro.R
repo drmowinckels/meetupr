@@ -42,20 +42,24 @@ get_pro_groups <- function(
     process_pro_group_data()
 }
 
-gql_get_pro_groups <- meetup_query_generator(
-  "find_pro_groups",
-  cursor_fn = function(x) {
-    pageInfo <- x$data$proNetworkByUrlname$groupsSearch$pageInfo
-    if (pageInfo$hasNextPage) list(cursor = pageInfo$endCursor) else NULL
-  },
-  total_fn = function(x) x$data$proNetworkByUrlname$groupsSearch$count %||% Inf,
-  extract_fn = function(x) {
-    lapply(x$data$proNetworkByUrlname$groupsSearch$edges, function(item) {
-      item$node
-    })
-  },
-  pb_format = "- :current/?? :elapsed :spin"
-)
+gql_get_pro_groups <- function(...) {
+  meetup_query_generator(
+    "find_pro_groups",
+    ...,
+    cursor_fn = function(x) {
+      pageInfo <- x$data$proNetworkByUrlname$groupsSearch$pageInfo
+      if (pageInfo$hasNextPage) list(cursor = pageInfo$endCursor) else NULL
+    },
+    total_fn = function(x) {
+      x$data$proNetworkByUrlname$groupsSearch$count %||% Inf
+    },
+    extract_fn = function(x) {
+      lapply(x$data$proNetworkByUrlname$groupsSearch$edges, function(item) {
+        item$node
+      })
+    }
+  )
+}
 
 #' @export
 #' @describeIn meetup_pro retrieve events from a pro network
@@ -75,17 +79,21 @@ get_pro_events <- function(
     process_pro_event_data()
 }
 
-gql_get_pro_events <- meetup_query_generator(
-  "find_pro_events",
-  cursor_fn = function(x) {
-    pageInfo <- x$data$proNetworkByUrlname$eventsSearch$pageInfo
-    if (pageInfo$hasNextPage) list(cursor = pageInfo$endCursor) else NULL
-  },
-  total_fn = function(x) x$data$proNetworkByUrlname$eventsSearch$count %||% Inf,
-  extract_fn = function(x) {
-    lapply(x$data$proNetworkByUrlname$eventsSearch$edges, function(item) {
-      item$node
-    })
-  },
-  pb_format = "- :current/?? :elapsed :spin"
-)
+gql_get_pro_events <- function(...) {
+  meetup_query_generator(
+    "find_pro_events",
+    ...,
+    cursor_fn = function(x) {
+      pageInfo <- x$data$proNetworkByUrlname$eventsSearch$pageInfo
+      if (pageInfo$hasNextPage) list(cursor = pageInfo$endCursor) else NULL
+    },
+    total_fn = function(x) {
+      x$data$proNetworkByUrlname$eventsSearch$count %||% Inf
+    },
+    extract_fn = function(x) {
+      lapply(x$data$proNetworkByUrlname$eventsSearch$edges, function(item) {
+        item$node
+      })
+    }
+  )
+}

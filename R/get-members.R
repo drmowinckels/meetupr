@@ -44,15 +44,17 @@ get_members <- function(
   process_datetime_fields(dt, c("created", "most_recent_visit"))
 }
 
-gql_get_members <- meetup_query_generator(
-  "find_members",
-  cursor_fn = function(x) {
-    pageInfo <- x$data$groupByUrlname$memberships$pageInfo
-    if (pageInfo$hasNextPage) list(cursor = pageInfo$endCursor) else NULL
-  },
-  total_fn = function(x) x$data$groupByUrlname$memberships$count %||% Inf,
-  extract_fn = function(x) {
-    lapply(x$data$groupByUrlname$memberships$edges, identity)
-  },
-  pb_format = "- :current/?? :elapsed :spin"
-)
+gql_get_members <- function(...) {
+  meetup_query_generator(
+    "find_members",
+    ...,
+    cursor_fn = function(x) {
+      pageInfo <- x$data$groupByUrlname$memberships$pageInfo
+      if (pageInfo$hasNextPage) list(cursor = pageInfo$endCursor) else NULL
+    },
+    total_fn = function(x) x$data$groupByUrlname$memberships$count %||% Inf,
+    extract_fn = function(x) {
+      lapply(x$data$groupByUrlname$memberships$edges, identity)
+    }
+  )
+}

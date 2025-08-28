@@ -41,15 +41,17 @@ find_groups <- function(
   process_datetime_fields(dt, "created")
 }
 
-gql_find_groups <- meetup_query_generator(
-  "find_groups",
-  cursor_fn = function(x) {
-    pageInfo <- x$data$keywordSearch$pageInfo
-    if (pageInfo$hasNextPage) list(cursor = pageInfo$endCursor) else NULL
-  },
-  total_fn = function(x) x$data$keywordSearch$count %||% Inf,
-  extract_fn = function(x) {
-    lapply(x$data$keywordSearch$edges, function(item) item$node)
-  },
-  pb_format = "- :current/?? :elapsed :spin"
-)
+gql_find_groups <- function(...) {
+  meetup_query_generator(
+    "find_groups",
+    ...,
+    cursor_fn = function(x) {
+      pageInfo <- x$data$keywordSearch$pageInfo
+      if (pageInfo$hasNextPage) list(cursor = pageInfo$endCursor) else NULL
+    },
+    total_fn = function(x) x$data$keywordSearch$count %||% Inf,
+    extract_fn = function(x) {
+      lapply(x$data$keywordSearch$edges, function(item) item$node)
+    }
+  )
+}
