@@ -1,6 +1,31 @@
-.ext_pattern <- "[[:alnum:]]{1,}\\.[[:alpha:]]{1,}$"
+.check_event_status <- function(event_status) {
+  match.arg(
+    event_status,
+    c("CANCELLED", "DRAFT", "PAST", "UPCOMING"),
+    several.ok = TRUE
+  )
+}
+
+validate_graphql_variables <- function(variables) {
+  if (length(variables) > 0 && !rlang::is_named(variables)) {
+    stop(
+      "All GraphQL variables must be named. Variables:\n",
+      capture_str(variables),
+      call. = FALSE
+    )
+  }
+  invisible(TRUE)
+}
+
+capture_str <- function(x) {
+  paste0(
+    capture.output(str(x)),
+    collapse = "\n"
+  )
+}
 
 has_ext <- function(x) {
+  .ext_pattern <- "[[:alnum:]]{1,}\\.[[:alpha:]]{1,}$"
   stopifnot(length(x) == 1L)
   x <- basename(x)
   grepl(.ext_pattern, x)

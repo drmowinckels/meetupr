@@ -3,7 +3,6 @@
 #' @param id Required event ID
 #' @param ... Should be empty. Used for parameter expansion
 #' @param extra_graphql A graphql object. Extra objects to return
-#' @param token Meetup token
 #' @return A tibble with the following columns:
 #'    * member_id
 #'    * member_name
@@ -29,15 +28,26 @@
 get_event_rsvps <- function(
   id,
   ...,
-  extra_graphql = NULL,
-  token = meetup_token()
+  extra_graphql = NULL
 ) {
   ellipsis::check_dots_empty()
 
   gql_get_event_rsvps(
     id = id,
-    .extra_graphql = extra_graphql,
-    .token = token
+    .extra_graphql = extra_graphql
   ) |>
     process_rsvp_data()
 }
+
+gql_get_event_rsvps <- meetup_query_generator(
+  "find_rsvps",
+  cursor_fn = function(x) {
+    pageInfo <- x$data$event$tickets$pageInfo
+    if (pageInfo$hasNextPage) list(cursor = pageInfo$endCursor) else NULL
+  },
+  total_fn = function(x) x$data$event$tickets$count %||% Inf,
+  extract_fn = function(x) {
+    lapply(x$data$event$tickets$edges, function(item) item$node)
+  },
+  pb_format = "- :current/?? :elapsed :spin"
+)

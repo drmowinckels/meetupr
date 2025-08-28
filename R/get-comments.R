@@ -3,7 +3,6 @@
 #' @param id Required event ID
 #' @param ... Should be empty. Used for parameter expansion
 #' @template extra_graphql
-#' @template token
 #' @return A tibble with comments data
 #' @references
 #' \url{https://www.meetup.com/api/schema/#Event}
@@ -16,15 +15,13 @@
 get_event_comments <- function(
   id,
   ...,
-  extra_graphql = NULL,
-  token = meetup_token()
+  extra_graphql = NULL
 ) {
   ellipsis::check_dots_empty()
 
   dt <- gql_get_event_comments(
     id = id,
-    .extra_graphql = extra_graphql,
-    .token = token
+    .extra_graphql = extra_graphql
   )
 
   if (check_empty_response(dt)) {
@@ -42,3 +39,13 @@ get_event_comments <- function(
 
   process_datetime_fields(dt, "created")
 }
+
+gql_get_event_comments <- meetup_query_generator(
+  "find_event_comments",
+  cursor_fn = function(response) NULL,
+  total_fn = function(x) x$data$event$comments$count %||% Inf,
+  extract_fn = function(x) {
+    lapply(x$data$event$comments$edges, function(item) item$node)
+  },
+  pb_format = "- :current/?? :elapsed :spin"
+)

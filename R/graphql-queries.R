@@ -1,8 +1,7 @@
 graphql_file <- function(
   .file,
   ...,
-  .extra_graphql = NULL,
-  .token = meetup_token()
+  .extra_graphql = NULL
 ) {
   file_path <- get_graphql_file_path(.file)
   query <- read_graphql_file(file_path)
@@ -11,21 +10,32 @@ graphql_file <- function(
 
   glued_query <- insert_extra_graphql(query, .extra_graphql)
 
-  graphql_query(.query = glued_query, ..., .token = .token)
+  meetup_query(.query = glued_query, ...)
 }
 
-graphql_query <- function(.query, ..., .token = meetup_token()) {
+#' Execute GraphQL query
+#' @param .query GraphQL query string
+#' @param ... Variables to pass to query
+#' @export
+meetup_query <- function(
+  .query,
+  ...,
+  parent_frame = parent.frame()
+) {
   variables <- purrr::compact(rlang::list2(...))
 
   validate_graphql_variables(variables)
 
-  req <- build_graphql_request(.query, variables, .token)
+  req <- build_graphql_request(.query, variables)
   result <- execute_graphql_request(req)
 
   if (!is.null(result$errors)) {
-    stop(
-      "GraphQL errors: ",
-      paste(sapply(result$errors, function(e) e$message), collapse = "; ")
+    cli::cli_abort(
+      c(
+        "Failed to execute GraphQL query.",
+        sapply(result$errors, function(e) e$message)
+      ),
+      .envir = parent_frame
     )
   }
 

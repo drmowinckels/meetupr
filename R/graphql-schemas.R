@@ -45,6 +45,6 @@ insert_extra_graphql <- function(query, .extra_graphql) {
       trim = FALSE
     )
   } else {
-    query
+    gsub("<< extra_graphql >>", "", query)
   }
 }
