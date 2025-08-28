@@ -12,8 +12,8 @@
 #'    * organized_group_count
 #' @references
 #' \url{https://www.meetup.com/api/schema/#Event}
-#' \url{https://www.meetup.com/api/schema/#Ticket}
-#' \url{https://www.meetup.com/api/schema/#User}
+#' \url{https://www.meetup.com/api/schema/#RSVP}
+#' \url{https://www.meetup.com/api/schema/#Member}
 #' @examples
 #' \dontrun{
 #' attendees <- get_event_attendees(id = "103349942!chp")
@@ -33,10 +33,19 @@ get_event_attendees <- function(
     .token = token
   )
 
-  rename(dt,
+  if (is.null(dt) || nrow(dt) == 0) {
+    return(NULL)
+  }
+
+  # Apply field mappings from migration guide
+  rename(
+    dt,
+    # Member field mappings (User -> Member)
     url = memberUrl,
-    photo = memberPhoto.baseUrl,
-    organized_group_count = organizedGroupCount
+    member_photo = memberPhoto.baseUrl, # Image -> Photo
+    organized_group_count = organizedGroupCount,
+
+    # Keep backwards compatibility
+    photo = memberPhoto.baseUrl # Keep old field name for compatibility
   )
 }
-

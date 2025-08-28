@@ -12,14 +12,14 @@
 #' @importFrom anytime anytime
 #' @export
 find_groups <- function(
-    query,
-    ...,
-    topic_category_id = NULL,
-    lat = 0,
-    lon = 0,
-    radius = 100000000,
-    extra_graphql = NULL,
-    token = meetup_token()
+  query,
+  ...,
+  topic_category_id = NULL,
+  lat = 0,
+  lon = 0,
+  radius = 100000000,
+  extra_graphql = NULL,
+  token = meetup_token()
 ) {
   ellipsis::check_dots_empty()
 
@@ -33,17 +33,38 @@ find_groups <- function(
     .token = token
   )
 
-  dt <- rename(dt,
+  if (is.null(dt) || nrow(dt) == 0) {
+    return(NULL)
+  }
+
+  # Apply field mappings from migration guide
+  dt <- rename(
+    dt,
+    # Group field mappings (from migration guide)
     created = foundedDate,
+    total_count = totalCount, # count -> totalCount
+    key_group_photo = keyGroupPhoto, # logo -> keyGroupPhoto
+    active_topics = activeTopics, # topics -> activeTopics
+    memberships = memberships, # membershipSearch -> memberships
+
+    # Keep existing mappings that are still correct
     members = memberships.count,
     join_mode = joinMode,
     category_id = category.id,
     category_name = category.name,
-    country = country_name,
+
+    # Coordinate field mappings (already correct in new API)
+    lat = lat, # latitude -> lat (already renamed)
+    lon = lon, # longitude -> lon (already renamed)
+
+    country = country_name
   )
 
-  dt$country <- NULL
+  # Remove the country_name field as it's now mapped to country
+  dt$country_name <- NULL
+
+  # Date/time processing
   dt$created <- anytime::anytime(dt$created)
+
   dt
 }
-

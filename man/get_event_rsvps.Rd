@@ -41,6 +41,6 @@ rsvps <- get_event_rsvps(id = "103349942!chp")
 }
 \references{
 \url{https://www.meetup.com/api/schema/#Event}
-\url{https://www.meetup.com/api/schema/#Ticket}
-\url{https://www.meetup.com/api/schema/#User}
+\url{https://www.meetup.com/api/schema/#RSVP}
+\url{https://www.meetup.com/api/schema/#Member}
 }

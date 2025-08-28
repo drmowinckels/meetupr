@@ -1,5 +1,6 @@
 # Credit to Jenny Bryan for OAuth wisdom.
-#
+# OAuth 2.0 authentication using httr2
+
 # environment to store credentials
 .state <- new.env(parent = emptyenv())
 
@@ -11,7 +12,7 @@
 #' saved to a file in your home directory whose path is saved in `.Renviron`
 #' as `MEETUPR_PAT`.
 #' If you set `use_appdir` to `FALSE` but `cache` to `TRUE`,
-#' they are cached in a file named \code{.httr-oauth} in the current working directory.
+#' they are cached in a file named \code{.httr2-oauth} in the current working directory.
 #' To control where the file is saved, use `token_path`.
 #'
 #' @section How to force meetupr to use a given token?:
@@ -66,12 +67,12 @@
 #'   stored as an \code{.rds} file.
 #' @param new_user logical, defaults to \code{FALSE}. Set to \code{TRUE} if you
 #'   want to wipe the slate clean and re-authenticate with the same or different
-#'   Meetup account. This disables the \code{.httr-oauth} file in current
+#'   Meetup account. This disables the \code{.httr2-oauth} file in current
 #'   working directory.
 #' @param key,secret the "Client ID" and "Client secret" for the application;
 #'   defaults to the ID and secret built into the \code{meetupr} package
 #' @param cache logical indicating if \code{meetupr} should cache
-#'   credentials in the default cache file \code{.httr-oauth} or `token_path`.
+#'   credentials in the default cache file \code{.httr2-oauth} or `token_path`.
 #' @param use_appdir Logical indicating whether to save the created token
 #'   in app dir as determined by `rappdirs::user_data_dir("meetupr", "meetupr")`.
 #'   If \code{cache} is `FALSE` this is ignored.
@@ -96,25 +97,27 @@
 #' meetup_auth(token = ttt)       # from an object
 #' meetup_auth(token = "ttt.rds") # from .rds file
 #' }
-meetup_auth <- function(token = meetup_token_path(),
-                        new_user = FALSE,
-                        key = getOption("meetupr.consumer_key"),
-                        secret = getOption("meetupr.consumer_secret"),
-                        cache = getOption("meetupr.httr_oauth_cache", TRUE),
-                        verbose = meetupr_verbose(),
-                        use_appdir = TRUE,
-                        token_path = NULL) {
-
+meetup_auth <- function(
+  token = meetup_token_path(),
+  new_user = FALSE,
+  key = getOption("meetupr.consumer_key"),
+  secret = getOption("meetupr.consumer_secret"),
+  cache = getOption("meetupr.httr2_oauth_cache", TRUE),
+  verbose = meetupr_verbose(),
+  use_appdir = TRUE,
+  token_path = NULL
+) {
   if (new_user) {
     meetup_deauth(clear_cache = TRUE, verbose = verbose)
   }
 
   if (is.null(token)) {
-
-    meetup_app       <- httr::oauth_app("meetup", key = key, secret = secret)
-    meetup_endpoints <- httr::oauth_endpoint(
-      authorize = 'https://secure.meetup.com/oauth2/authorize',
-      access    = 'https://secure.meetup.com/oauth2/access'
+    # Create httr2 OAuth client
+    client <- httr2::oauth_client(
+      id = key,
+      secret = secret,
+      token_url = "https://secure.meetup.com/oauth2/access",
+      name = "meetup"
     )
 
     if (!cache && !is.null(token_path)) {
@@ -122,80 +125,74 @@ meetup_auth <- function(token = meetup_token_path(),
         "You chose `cache` FALSE (no saving to disk) but input a `token_path`.",
         "Should you set `cache` to TRUE?",
         call. = FALSE
-        )
-    }
-
-
-    if (cache) {
-      if (use_appdir) {
-        if (is.null(token_path)) {
-          token_path <- appdir_path()
-          # from https://github.com/r-hub/rhub/blob/5c339d7b95d75172beec85603ee197c2502903b1/R/email.R#L192
-          parent <- dirname(token_path)
-          if (!file.exists(parent)) dir.create(parent, recursive = TRUE)
-        }
-
-      }
-
-      # In all cases if cache is TRUE we want to set it to the filepath
-      if (!is.null(token_path)) {
-        cache <- token_path
-      }
-    }
-
-    meetup_token <- httr::oauth2.0_token(
-      meetup_endpoints,
-      meetup_app,
-      cache = cache # if FALSE won't be saved, if character will be saved
-      # to character (filepath)
       )
+    }
 
-    stopifnot(is_legit_token(meetup_token, verbose = TRUE))
+    # Determine cache location
+    if (cache) {
+      if (use_appdir && is.null(token_path)) {
+        token_path <- appdir_path()
+        parent <- dirname(token_path)
+        if (!file.exists(parent)) dir.create(parent, recursive = TRUE)
+      }
 
+      if (is.null(token_path)) {
+        token_path <- ".httr2-oauth-meetup"
+      }
+    } else {
+      token_path <- NULL
+    }
 
-    # save token to .state$token after refreshing if need be
-    # here we've just created it so probably no need to refresh it
-    save_and_refresh_token(meetup_token, token_path)
-    return(invisible(.state$token))
+    # Create OAuth token
+    meetup_token <- httr2::oauth_flow_auth_code(
+      client = client,
+      auth_url = "https://secure.meetup.com/oauth2/authorize",
+      cache_disk = token_path,
+      scope = NULL # Meetup doesn't use scopes
+    )
 
+    .state$token <- meetup_token
+    return(invisible(meetup_token))
   }
 
-  if (inherits(token, "Token2.0")) {
-
-    stopifnot(is_legit_token(token, verbose = TRUE))
+  if (inherits(token, "httr2_token")) {
     .state$token <- token
-
-    save_and_refresh_token(token, token_path)
-    return(invisible(.state$token))
-
+    return(invisible(token))
   }
 
   if (inherits(token, "character")) {
-
     token_path <- token
-    meetup_token <- try(suppressWarnings(readRDS(token)[[1]]), silent = TRUE)
-    if (inherits(meetup_token, "try-error")) {
-      spf("Cannot read token from alleged .rds file:\n%s", token)
-    } else if (!is_legit_token(meetup_token, verbose = TRUE)) {
-      spf("File does not contain a proper token:\n%s", token)
+
+    if (!file.exists(token_path)) {
+      spf("Token file does not exist:\n%s", token_path)
     }
 
-    save_and_refresh_token(meetup_token, token_path)
-    return(invisible(.state$token))
+    meetup_token <- try(readRDS(token_path), silent = TRUE)
+
+    if (inherits(meetup_token, "try-error")) {
+      spf("Cannot read token from alleged .rds file:\n%s", token_path)
+    }
+
+    if (!inherits(meetup_token, "httr2_token")) {
+      spf("File does not contain a proper httr2 token:\n%s", token_path)
+    }
+
+    .state$token <- meetup_token
+    return(invisible(meetup_token))
   }
 
-  spf(paste0("Input provided via 'token' is neither a token,\n",
-               "nor a path to an .rds file containing a token."))
-
+  spf(
+    "Input provided via 'token' is neither a token nor a path to an .rds file containing a token."
+  )
 }
 
 #' Produce Meetup token
 #'
 #' If token is not already available, call \code{\link{meetup_auth}} to either
-#' load from cache or initiate OAuth2.0 flow. Return the token -- not "bare"
-#' but, rather, prepared for inclusion in downstream requests.
+#' load from cache or initiate OAuth2.0 flow. Return the token for use in
+#' downstream requests.
 #'
-#' @return a \code{request} object (an S3 class provided by \code{httr})
+#' @return an httr2_token object
 #'
 #' @keywords internal
 #' @export
@@ -207,14 +204,15 @@ meetup_auth <- function(token = meetup_token_path(),
 #' }
 meetup_token <- function(verbose = FALSE) {
   if (nzchar(Sys.getenv("MEETUPR_TESTING"))) {
-    return(httr::config())
+    # Return a mock token for testing
+    return(structure(list(access_token = "test-token"), class = "httr2_token"))
   }
-    if (!token_available(verbose = verbose)) {
-      # Init `.state$token`
-      meetup_auth(verbose = verbose)
-    }
 
-    httr::config(token = .state$token)
+  if (!token_available(verbose = verbose)) {
+    meetup_auth(verbose = verbose)
+  }
+
+  .state$token
 }
 
 #' Check token availability
@@ -226,26 +224,27 @@ meetup_token <- function(verbose = FALSE) {
 #'
 #' @keywords internal
 token_available <- function(verbose = TRUE) {
-
   if (is.null(.state$token)) {
     if (verbose) {
-      if (!is.null(meetup_token_path()) && file.exists(meetup_token_path())) {
-        message("A .httr-oauth file exists in current working ",
-                "directory.\nWhen/if needed, the credentials cached in ",
-                ".httr-oauth will be used for this session.\nOr run ",
-                "meetup_auth() for explicit authentication and authorization.")
+      token_path <- meetup_token_path()
+      if (!is.null(token_path) && file.exists(token_path)) {
+        message(
+          "A token file exists.\nWhen/if needed, the credentials cached will be used for this session.\nOr run ",
+          "meetup_auth() for explicit authentication and authorization."
+        )
       } else {
-        message("No .httr-oauth file exists in current working directory.\n",
-                "When/if needed, 'meetupr' will initiate authentication ",
-                "and authorization.\nOr run meetup_auth() to trigger this ",
-                "explicitly.")
+        message(
+          "No token file exists.\n",
+          "When/if needed, 'meetupr' will initiate authentication ",
+          "and authorization.\nOr run meetup_auth() to trigger this ",
+          "explicitly."
+        )
       }
     }
     return(FALSE)
   }
 
   TRUE
-
 }
 
 #' Suspend authorization
@@ -254,8 +253,8 @@ token_available <- function(verbose = TRUE) {
 #' APIs on behalf of the authenticated user.
 #'
 #' @param clear_cache logical indicating whether to disable the
-#'   \code{.httr-oauth} file in working directory, if such exists, by renaming
-#'   to \code{.httr-oauth-SUSPENDED}
+#'   token file in working directory, if such exists, by renaming
+#'   to \code{*-SUSPENDED}
 #' @template verbose
 #' @export
 #' @rdname meetup-auth
@@ -264,20 +263,18 @@ token_available <- function(verbose = TRUE) {
 #' \dontrun{
 #' meetup_deauth()
 #' }
-meetup_deauth <- function(clear_cache = TRUE,
-                          verbose = meetupr_verbose()) {
+meetup_deauth <- function(clear_cache = TRUE, verbose = meetupr_verbose()) {
+  token_path <- meetup_token_path()
 
-  if (clear_cache && file.exists(meetup_token_path())) {
+  if (clear_cache && !is.null(token_path) && file.exists(token_path)) {
     if (verbose) {
-      message(
-        sprintf(
+      message(sprintf(
         "Disabling %s by renaming to %s-SUSPENDED",
-        meetup_token_path(),
-        meetup_token_path()
-        )
-        )
+        token_path,
+        token_path
+      ))
     }
-    file.rename(meetup_token_path(), paste0(meetup_token_path(), "-SUSPENDED"))
+    file.rename(token_path, paste0(token_path, "-SUSPENDED"))
   }
 
   if (token_available(verbose = FALSE)) {
@@ -290,36 +287,6 @@ meetup_deauth <- function(clear_cache = TRUE,
   }
 
   invisible(NULL)
-
-}
-
-#' Check that token appears to be legitimate
-#'
-#' @keywords internal
-is_legit_token <- function(x, verbose = FALSE) {
-
-  if (!inherits(x, "Token2.0")) {
-    if (verbose) message("Not a Token2.0 object.")
-    return(FALSE)
-  }
-
-  if ("invalid_client" %in% unlist(x$credentials)) {
-    # shouldn't happen if id and secret are good
-    if (verbose) {
-      message("Authorization error. Please check consumer_key and consumer_secret")
-    }
-    return(FALSE)
-  }
-
-  if ("invalid_request" %in% unlist(x$credentials)) {
-    # in past, this could happen if user clicks "Cancel" or "Deny" instead of
-    # "Accept" when OAuth2 flow kicks to browser ... but httr now catches this
-    if (verbose) message("Authorization error. No access token obtained.")
-    return(FALSE)
-  }
-
-  TRUE
-
 }
 
 #' @return Either NULL or the path in which the token is saved.
@@ -332,28 +299,15 @@ is_legit_token <- function(x, verbose = FALSE) {
 meetup_token_path <- function() {
   token_path <- appdir_path()
 
-  if (file.exists(appdir_path())) {
+  if (file.exists(token_path)) {
     return(token_path)
   }
 
-  if (file.exists(".httr-oauth")) {
-    return(".httr-oauth")
+  if (file.exists(".httr2-oauth-meetup")) {
+    return(".httr2-oauth-meetup")
   }
 
-  return(NULL)
-}
-
-save_and_refresh_token <- function(token, path) {
-
-  if (token$credentials$expires_in < 60) {
-    token$refresh()
-
-    if(!is.null(path)) {
-      saveRDS(token, path)
-    }
-  }
-
-  .state$token <- token
+  NULL
 }
 
 appdir_path <- function() {

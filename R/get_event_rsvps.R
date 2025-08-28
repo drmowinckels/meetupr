@@ -18,8 +18,8 @@
 #'    * updated
 #' @references
 #' \url{https://www.meetup.com/api/schema/#Event}
-#' \url{https://www.meetup.com/api/schema/#Ticket}
-#' \url{https://www.meetup.com/api/schema/#User}
+#' \url{https://www.meetup.com/api/schema/#RSVP}
+#' \url{https://www.meetup.com/api/schema/#Member}
 #' @examples
 #' \dontrun{
 #' rsvps <- get_event_rsvps(id = "103349942!chp")
@@ -27,10 +27,10 @@
 #' @export
 #' @importFrom anytime anytime
 get_event_rsvps <- function(
-    id,
-    ...,
-    extra_graphql = NULL,
-    token = meetup_token()
+  id,
+  ...,
+  extra_graphql = NULL,
+  token = meetup_token()
 ) {
   ellipsis::check_dots_empty()
 
@@ -40,22 +40,51 @@ get_event_rsvps <- function(
     .token = token
   )
 
-  dt <- rename(dt,
-               member_id = user.id,
-               member_name = user.name,
-               member_url = user.memberUrl,
-               event_id = event.id,
-               event_title = event.title,
-               event_url = event.eventUrl,
-               member_is_host = isHost,
-               guests = guestsCount,
-               response = status,
-               created = createdAt,
-               updated = updatedAt
+  if (is.null(dt) || nrow(dt) == 0) {
+    return(NULL)
+  }
+
+  # Apply field mappings from migration guide
+  dt <- rename(
+    dt,
+    # RSVP field mappings (Ticket -> RSVP, User -> Member)
+    member_id = member.id, # user -> member
+    member_name = member.name, # user -> member
+    member_url = member.memberUrl, # user -> member
+
+    # Event field mappings
+    event_id = event.id,
+    event_title = event.title,
+    event_url = event.eventUrl,
+
+    # RSVP specific fields
+    member_is_host = isHost,
+    guests = guestsCount,
+    response = status,
+
+    # Date fields (updated -> updated per migration guide)
+    created = createdAt,
+    updated = updated # updatedAt -> updated
   )
-  dt$created = anytime(dt$created)
-  dt$updated = anytime(dt$updated)
+
+  # Handle cases where old field names might still exist
+  # Fallback to old field names if new ones aren't available
+  if (!"member.id" %in% names(dt) && "user.id" %in% names(dt)) {
+    dt <- rename(
+      dt,
+      member_id = user.id,
+      member_name = user.name,
+      member_url = user.memberUrl
+    )
+  }
+
+  if (!"updated" %in% names(dt) && "updatedAt" %in% names(dt)) {
+    dt <- rename(dt, updated = updatedAt)
+  }
+
+  # Date/time processing
+  dt$created <- anytime::anytime(dt$created)
+  dt$updated <- anytime::anytime(dt$updated)
+
   dt
-
 }
-

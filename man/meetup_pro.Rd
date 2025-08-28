@@ -37,11 +37,11 @@ had a meetup pro account.
 }
 \section{Functions}{
 \itemize{
-\item \code{get_pro_groups}: retrieve groups in a pro network
+\item \code{get_pro_groups()}: retrieve groups in a pro network
 
-\item \code{get_pro_events}: retrieve events from a pro network
+\item \code{get_pro_events()}: retrieve events from a pro network
+
 }}
-
 \examples{
 \dontrun{
 urlname <- "rladies"
