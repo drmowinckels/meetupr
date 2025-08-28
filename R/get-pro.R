@@ -27,7 +27,6 @@
 #' @return A tibble with meetup pro information
 NULL
 
-#' Get pro groups information
 #' @export
 #' @describeIn meetup_pro retrieve groups in a pro network
 get_pro_groups <- function(
@@ -38,30 +37,14 @@ get_pro_groups <- function(
 ) {
   ellipsis::check_dots_empty()
 
-  dt <- gql_get_pro_groups(
+  gql_get_pro_groups(
     urlname = urlname,
     .extra_graphql = extra_graphql,
     .token = token
-  )
-  dt <- rename(dt,
-               created = foundedDate,
-               members = memberships.count,
-               join_mode = joinMode,
-               category_id = category.id,
-               category_name = category.name,
-               country = country_name,
-               past_events_count = pastEvents.count,
-               upcoming_events_count = upcomingEvents.count,
-               membership_status = membershipMetadata.status,
-               is_private = isPrivate
-
-  )
-
-  dt$created <- anytime::anytime(dt$created)
-  dt
+  ) |>
+    process_pro_group_data()
 }
 
-#' Get pro events information
 #' @export
 #' @describeIn meetup_pro retrieve events from a pro network
 get_pro_events <- function(
@@ -73,24 +56,11 @@ get_pro_events <- function(
 ) {
   ellipsis::check_dots_empty()
 
-  dt <- gql_get_pro_events(
+  gql_get_pro_events(
     urlname = urlname,
     status = status,
     .extra_graphql = extra_graphql,
     .token = token
-  )
-  if(nrow(dt) == 0) return(NULL)
-
-  # replace dot with underscore
-  names(dt) <- gsub("\\.", "_", names(dt))
-
-  dt <- rename(dt,
-               link = eventUrl,
-               event_type = eventType,
-               venue_zip = venue_postalCode
-  )
-  dt$time <- anytime::anytime(dt$dateTime)
-
-  remove(dt,
-         dateTime)
+  ) |>
+    process_pro_event_data()
 }

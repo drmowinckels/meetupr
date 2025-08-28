@@ -26,15 +26,14 @@
 #' meetup_sitrep(c("config", "api"))
 #' }
 meetup_sitrep <- function(scope = c("config", "auth", "api")) {
+  scope <- match.arg(
+    scope,
+    c("config", "auth", "api", "all"),
+    several.ok = TRUE
+  )
   if ("all" %in% scope) {
     scope <- c("config", "auth", "api")
   }
-
-  scope <- match.arg(
-    scope,
-    c("config", "auth", "api"),
-    several.ok = TRUE
-  )
 
   cli::cli_h1("Meetup API situation report")
 

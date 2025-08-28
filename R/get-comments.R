@@ -1,20 +1,13 @@
 #' Get the comments for a specified event
 #'
-#' @template id
+#' @param id Required event ID
 #' @param ... Should be empty. Used for parameter expansion
 #' @template extra_graphql
 #' @template token
-#' @return A tibble with the following columns:
-#'    * id
-#'    * comment
-#'    * created
-#'    * like_count
-#'    * member_id
-#'    * member_name
-#'    * link
+#' @return A tibble with comments data
 #' @references
 #' \url{https://www.meetup.com/api/schema/#Event}
-#' \url{https://www.meetup.com/api/schema/#EventCommentConnection}
+#' \url{https://www.meetup.com/api/schema/#Comment}
 #' @examples
 #' \dontrun{
 #' comments <- get_event_comments(id = "103349942!chp")
@@ -34,11 +27,18 @@ get_event_comments <- function(
     .token = token
   )
 
-  rename(dt,
-      comment = text,
-      like_count = likeCount,
-      member_id = member.id,
-      member_name = member.name
-    )
+  if (check_empty_response(dt)) {
+    return(NULL)
+  }
 
+  dt <- rename(
+    dt,
+    comment_id = id,
+    comment_text = text,
+    created = created,
+    member_id = member.id,
+    member_name = member.name
+  )
+
+  process_datetime_fields(dt, "created")
 }

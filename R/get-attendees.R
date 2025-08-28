@@ -27,25 +27,16 @@ get_event_attendees <- function(
 ) {
   ellipsis::check_dots_empty()
 
-  dt <- gql_get_event_attendees(
+  gql_get_event_attendees(
     id = id,
     .extra_graphql = extra_graphql,
     .token = token
-  )
-
-  if (is.null(dt) || nrow(dt) == 0) {
-    return(NULL)
-  }
-
-  # Apply field mappings from migration guide
-  rename(
-    dt,
-    # Member field mappings (User -> Member)
-    url = memberUrl,
-    member_photo = memberPhoto.baseUrl, # Image -> Photo
-    organized_group_count = organizedGroupCount,
-
-    # Keep backwards compatibility
-    photo = memberPhoto.baseUrl # Keep old field name for compatibility
-  )
+  ) |>
+    process_member_data() |>
+    (\(dt) {
+      if (is.null(dt)) {
+        return(NULL)
+      }
+      rename(dt, organized_group_count = organizedGroupCount)
+    })()
 }

@@ -1,9 +1,9 @@
-# from https://github.com/ropensci/rtweet/blob/1bd1e16d14df8b31a13a8c2f0e0ff0e87ea066d1/R/tokens.R#L256 # nolint
-# ------------------------------------------------
+.ext_pattern <- "[[:alnum:]]{1,}\\.[[:alpha:]]{1,}$"
+
 has_ext <- function(x) {
   stopifnot(length(x) == 1L)
   x <- basename(x)
-  grepl("[[:alnum:]]{1,}\\.[[:alpha:]]{1,}$", x)
+  grepl(.ext_pattern, x)
 }
 
 only_ext <- function(x) {
@@ -25,7 +25,6 @@ no_ext <- function(x) {
 paste_before_ext <- function(x, p) {
   paste0(no_ext(x), p, only_ext(x))
 }
-
 
 uq_filename <- function(file_name) {
   stopifnot(is.character(file_name) && length(file_name) == 1L)
