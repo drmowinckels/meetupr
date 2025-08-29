@@ -52,9 +52,16 @@ gql_get_members <- function(...) {
       pageInfo <- x$data$groupByUrlname$memberships$pageInfo
       if (pageInfo$hasNextPage) list(cursor = pageInfo$endCursor) else NULL
     },
-    total_fn = function(x) x$data$groupByUrlname$memberships$count %||% Inf,
+    total_fn = function(x) {
+      x$data$groupByUrlname$memberships$totalCount %||% Inf
+    },
     extract_fn = function(x) {
       lapply(x$data$groupByUrlname$memberships$edges, identity)
     }
   )
+}
+
+process_member_data <- function(dt) {
+  dt |>
+    common_member_mappings()
 }

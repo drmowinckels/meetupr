@@ -43,12 +43,27 @@ gql_get_event_attendees <- function(...) {
     "find_attendees",
     ...,
     cursor_fn = function(x) {
-      pageInfo <- x$data$event$tickets$pageInfo
+      pageInfo <- x$data$event$tickets$pageInfo # Changed from rsvps
       if (pageInfo$hasNextPage) list(cursor = pageInfo$endCursor) else NULL
     },
-    total_fn = function(x) x$data$event$tickets$count %||% Inf,
+    total_fn = function(x) x$data$event$tickets$count %||% Inf, # Changed from totalCount
     extract_fn = function(x) {
-      lapply(x$data$event$tickets$edges, function(item) item$node$user)
+      lapply(x$data$event$tickets$edges, function(item) item$node$user) # Changed to user
+    },
+    finalizer_fn = function(ret) {
+      if (is.null(ret) || length(ret) == 0) {
+        return(dplyr::tibble(
+          id = character(0),
+          name = character(0),
+          bio = character(0),
+          memberUrl = character(0),
+          memberPhoto.baseUrl = character(0),
+          joinTime = character(0),
+          timezone = character(0),
+          organizedGroupCount = integer(0)
+        ))
+      }
+      data_to_tbl(ret)
     }
   )
 }

@@ -61,6 +61,23 @@ gql_get_pro_groups <- function(...) {
   )
 }
 
+process_pro_group_data <- function(dt) {
+  dt |>
+    rename(
+      created = foundedDate,
+      members = memberships.count,
+      join_mode = joinMode,
+      category_id = category.id,
+      category_name = category.name,
+      country = country_name,
+      past_events_count = pastEvents.count,
+      upcoming_events_count = upcomingEvents.count,
+      membership_status = membershipMetadata.status,
+      is_private = isPrivate
+    ) |>
+    process_datetime_fields("created")
+}
+
 #' @export
 #' @describeIn meetup_pro retrieve events from a pro network
 get_pro_events <- function(
@@ -96,4 +113,20 @@ gql_get_pro_events <- function(...) {
       })
     }
   )
+}
+
+
+process_pro_event_data <- function(dt) {
+  dt |>
+    normalize_field_names() |>
+    rename(
+      link = eventUrl,
+      event_type = eventType,
+      venue_zip = venue_postalCode
+    ) |>
+    (\(x) {
+      x$time <- anytime::anytime(x$dateTime)
+      x
+    })() |>
+    remove(dateTime)
 }

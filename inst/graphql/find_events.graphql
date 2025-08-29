@@ -1,16 +1,49 @@
 query singleEvent(
   $urlname: String!
-  $cursor: String
-  $query: Boolean = true
-  $first: Int = 10000
+  $cursorUpcoming: String
+  $cursorPast: String
+  $cursorDraft: String
+  $queryUpcoming: Boolean = true
+  $queryPast: Boolean = true
+  $queryDraft: Boolean = true
+  $firstUpcoming: Int = 10000
+  $firstPast: Int = 10000
+  $firstDraft: Int = 10000
 ) {
   groupByUrlname(urlname: $urlname) {
     id
-    events(input: { first: $first, after: $cursor }) @include(if: $query) {
+    upcomingEvents: upcomingEvents(input: { first: $firstUpcoming, after: $cursorUpcoming })
+      @include(if: $queryUpcoming) {
       pageInfo {
         ...pageInfos
       }
-      totalCount
+      count
+      edges {
+        cursor
+        node {
+          ...eventFields
+        }
+      }
+    }
+    pastEvents: pastEvents(input: { first: $firstPast, after: $cursorPast })
+      @include(if: $queryPast) {
+      pageInfo {
+        ...pageInfos
+      }
+      count
+      edges {
+        cursor
+        node {
+          ...eventFields
+        }
+      }
+    }
+    draftEvents: draftEvents(input: { first: $firstDraft, after: $cursorDraft })
+      @include(if: $queryDraft) {
+      pageInfo {
+        ...pageInfos
+      }
+      count
       edges {
         cursor
         node {
@@ -20,6 +53,7 @@ query singleEvent(
     }
   }
 }
+
 fragment pageInfos on PageInfo {
   hasNextPage
   endCursor
@@ -33,17 +67,14 @@ fragment eventFields on Event {
   status
   dateTime
   duration
-  attending {
-    totalCount
-  }
-  ticket {
-    quantity
-  }
   description
+  eventType
+  going
+  waiting
   venue {
     id
-    latitude
-    longitude
+    lat
+    lng
     name
     address
     city
@@ -51,5 +82,5 @@ fragment eventFields on Event {
     postalCode
     country
   }
+  << extra_graphql >>
 }
-

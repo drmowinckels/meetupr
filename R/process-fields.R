@@ -30,6 +30,14 @@ remove <- function(.data, ...) {
   .data
 }
 
+data_to_tbl <- function(data) {
+  dplyr::bind_rows(
+    lapply(data, function(data_item) {
+      rlist::list.flatten(data_item)
+    })
+  )
+}
+
 common_event_mappings <- function(.data) {
   rename(
     .data,

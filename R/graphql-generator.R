@@ -4,7 +4,8 @@ meetup_query_generator <- function(
   total_fn,
   extract_fn,
   ...,
-  .extra_graphql = NULL
+  .extra_graphql = NULL,
+  finalizer_fn = data_to_tbl
 ) {
   all_data <- list()
   cursor <- NULL
@@ -38,9 +39,6 @@ meetup_query_generator <- function(
     )
   }
 
-  if (length(all_data) == 0) {
-    return(NULL)
-  }
-
-  data_to_tbl(all_data)
+  # Use finalizer_fn instead of hardcoded logic
+  finalizer_fn(all_data)
 }

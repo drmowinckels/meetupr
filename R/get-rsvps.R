@@ -44,12 +44,32 @@ gql_get_event_rsvps <- function(...) {
     "find_rsvps",
     ...,
     cursor_fn = function(x) {
-      pageInfo <- x$data$event$tickets$pageInfo
+      pageInfo <- x$data$event$rsvps$pageInfo
       if (pageInfo$hasNextPage) list(cursor = pageInfo$endCursor) else NULL
     },
-    total_fn = function(x) x$data$event$tickets$count %||% Inf,
+    total_fn = function(x) x$data$event$rsvps$totalCount %||% Inf,
     extract_fn = function(x) {
-      lapply(x$data$event$tickets$edges, function(item) item$node)
+      lapply(x$data$event$rsvps$edges, function(item) item$node)
     }
   )
+}
+
+process_rsvp_data <- function(dt) {
+  dt |>
+    common_rsvp_mappings() |>
+    (\(x) {
+      if (!"member.id" %in% names(x) && "user.id" %in% names(x)) {
+        x <- rename(
+          x,
+          member_id = user.id,
+          member_name = user.name,
+          member_url = user.memberUrl
+        )
+      }
+      if (!"updated" %in% names(x) && "updatedAt" %in% names(x)) {
+        x <- rename(x, updated = updatedAt)
+      }
+      x
+    })() |>
+    process_datetime_fields(c("created", "updated"))
 }

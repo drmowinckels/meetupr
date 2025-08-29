@@ -60,3 +60,30 @@ uq_filename <- function(file_name) {
   }
   file_name
 }
+
+# Simplified country code conversion using countrycode package
+add_country_name <- function(items, get_country) {
+  lapply(items, function(item) {
+    country_code <- get_country(item)
+
+    # Handle missing/empty country codes
+    if (
+      is.null(country_code) ||
+        length(country_code) == 0 ||
+        is.na(country_code) ||
+        country_code == ""
+    ) {
+      item$country_name <- NA_character_
+    } else {
+      # Convert 2-letter country code to country name
+      item$country_name <- countrycode::countrycode(
+        country_code,
+        origin = "iso2c",
+        destination = "country.name",
+        warn = FALSE # Don't warn for unrecognized codes
+      )
+    }
+
+    item
+  })
+}

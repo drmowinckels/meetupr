@@ -1,37 +1,22 @@
-query eventRSVPs(
+query eventComment(
   $id: ID!,
-  $first: Int = 1000,
-  $cursor: String
-  ) {
+  $offset: Int = 0,
+  $limit: Int = 1000
+) {
   event(id: $id) {
-    id
-    title
-    dateTime
-    going
-    tickets(input:{after: $cursor, first: $first}) {
-      pageInfo {
-        hasNextPage
-        endCursor
-      }
-      count
+    comments(offset: $offset, limit: $limit) {
+      totalCount
       edges {
-       # cursor
         node {
-          user {
+          id
+          text
+          created
+          likeCount
+          member {
             id
             name
-            memberUrl
           }
-          isHost
-          status
-          guestsCount
-          event {
-            id
-            title
-            eventUrl
-          }
-          createdAt
-          updatedAt
+          link
           << extra_graphql >>
         }
       }

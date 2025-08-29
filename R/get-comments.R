@@ -19,35 +19,46 @@ get_event_comments <- function(
 ) {
   ellipsis::check_dots_empty()
 
-  dt <- gql_get_event_comments(
+  gql_get_event_comments(
     id = id,
     .extra_graphql = extra_graphql
   )
-
-  if (check_empty_response(dt)) {
-    return(NULL)
-  }
-
-  dt <- rename(
-    dt,
-    comment_id = id,
-    comment_text = text,
-    created = created,
-    member_id = member.id,
-    member_name = member.name
-  )
-
-  process_datetime_fields(dt, "created")
 }
 
 gql_get_event_comments <- function(...) {
   meetup_query_generator(
     "find_event_comments",
     ...,
-    cursor_fn = function(response) NULL,
-    total_fn = function(x) x$data$event$comments$count %||% Inf,
+    cursor_fn = function(response) NULL, # Comments don't use cursor pagination
+    total_fn = function(x) x$data$event$comments$count %||% Inf, # Changed from totalCount
     extract_fn = function(x) {
       lapply(x$data$event$comments$edges, function(item) item$node)
+    },
+    finalizer_fn = function(ret) {
+      if (is.null(ret) || length(ret) == 0) {
+        return(dplyr::tibble(
+          id = character(0),
+          text = character(0),
+          created = character(0),
+          likes = integer(0),
+          member_id = character(0),
+          member_name = character(0),
+          link = character(0)
+        ))
+      }
+      dt <- data_to_tbl(ret)
+
+      dt <- rename(
+        dt,
+        comment_id = id,
+        comment_text = text,
+        created = created,
+        likes = likeCount,
+        member_id = member.id,
+        member_name = member.name
+      )
+
+      process_datetime_fields(dt, "created")
     }
   )
 }
