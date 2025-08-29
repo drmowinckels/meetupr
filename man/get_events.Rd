@@ -4,11 +4,19 @@
 \alias{get_events}
 \title{Get the events from a meetup group}
 \usage{
-get_events(urlname, ..., extra_graphql = NULL)
+get_events(
+  urlname,
+  status = c("upcoming", "past", "draft"),
+  ...,
+  extra_graphql = NULL
+)
 }
 \arguments{
 \item{urlname}{Character. The name of the group as indicated in the
 \url{https://meetup.com} url.}
+
+\item{status}{Character vector of event statuses to retrieve.
+Options: "upcoming", "past", "draft". Default: all three.}
 
 \item{...}{Should be empty. Used for parameter expansion}
 

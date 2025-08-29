@@ -118,11 +118,20 @@ build_graphql_request <- function(query, variables = list()) {
 
   # Debug the request body if enabled
   if (nzchar(Sys.getenv("MEETUPR_DEBUG"))) {
-    body <- list(query = query, variables = variables)
-    message("DEBUG: Request body structure:")
-    str(body)
-    message("DEBUG: JSON to be sent:")
-    message(jsonlite::toJSON(body, auto_unbox = TRUE, pretty = TRUE))
+    body <- list(
+      query = query,
+      variables = variables
+    ) |>
+      jsonlite::toJSON(
+        auto_unbox = TRUE,
+        pretty = TRUE
+      ) |>
+      strsplit("\n|\\\\n") |>
+      unlist()
+    cli::cli_alert_info("DEBUG: JSON to be sent:")
+    cli::cli_code(
+      body
+    )
   }
 
   meetupr_req() |>
