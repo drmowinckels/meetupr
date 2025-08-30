@@ -1,29 +1,26 @@
 query keywordSearch(
-  $topicCategoryId: Int = null
-  $searchSources: [SearchSources!]! = [GROUPS]
   $query: String!
   $lat: Float = 0
   $lon: Float = 0
   $radius: Int = 100000000
-  $first: Int = 1000
+  $first: Int = 50
   $cursor: String
 ) {
-  groupSearch(
+  keywordSearch(
     input: { first: $first, after: $cursor }
     filter: {
       query: $query
-      latitude: $lat
-      longitude: $lon
+      lat: $lat
+      lon: $lon
       radius: $radius
-      topicCategoryId: $topicCategoryId
-      source: $searchSources
+      source: [GROUPS]
     }
   ) {
     pageInfo {
       hasNextPage
       endCursor
     }
-    totalCount
+    count
     edges {
       node {
         result {
@@ -31,30 +28,21 @@ query keywordSearch(
             id
             name
             urlname
-            latitude
-            longitude
+            link
+            description
             city
             state
             country
-            membershipMetadata {
-              status
-            }
-            memberships {
-              totalCount
+            isPrivate
+            stats {
+              memberCounts {
+                all
+              }
             }
             foundedDate
-            timezone
-            joinMode
-            who: customMemberLabel
-            isPrivate
-            activeTopics {
-              id
-              name
-            }
           }
         }
       }
     }
   }
 }
-

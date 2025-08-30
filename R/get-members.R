@@ -65,3 +65,11 @@ process_member_data <- function(dt) {
   dt |>
     common_member_mappings()
 }
+
+common_member_mappings <- function(.data) {
+  rename(
+    .data,
+    url = memberUrl,
+    photo = memberPhoto.baseUrl
+  )
+}

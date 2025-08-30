@@ -107,7 +107,16 @@ meetupr_req <- function(cache = TRUE, ...) {
       redirect_uri = "http://localhost:1410",
       cache_disk = cache
     ) |>
-    httr2::req_headers("Content-Type" = "application/json")
+    httr2::req_headers("Content-Type" = "application/json") |>
+    httr2::req_error(body = function(resp) {
+      error_data <- httr2::resp_body_json(resp)
+      if (!is.null(error_data$errors)) {
+        messages <- sapply(error_data$errors, function(err) err$message)
+        paste("Meetup API errors:", paste(messages, collapse = "; "))
+      } else {
+        "Unknown Meetup API error"
+      }
+    })
 }
 
 build_graphql_request <- function(query, variables = list()) {
@@ -142,27 +151,4 @@ build_graphql_request <- function(query, variables = list()) {
       ),
       auto_unbox = TRUE
     )
-}
-
-execute_graphql_request <- function(req) {
-  tryCatch(
-    {
-      httr2::req_perform(req) |>
-        httr2::resp_body_json()
-    },
-    error = function(e) {
-      # Try to get more detail from HTTP errors
-      if (inherits(e, "httr2_http_400")) {
-        # Try to extract the response body for more details
-        if (!is.null(e$resp)) {
-          body <- tryCatch(
-            httr2::resp_body_string(e$resp),
-            error = function(x) "Unable to read response body"
-          )
-          stop("HTTP 400 Bad Request - Server response: ", body, call. = FALSE)
-        }
-      }
-      stop("HTTP request failed: ", e$message, call. = FALSE)
-    }
-  )
 }

@@ -5,7 +5,7 @@
       "Use GraphQL functions instead."
     )
   )
-  stop(
+  cli::cli_abort(
     "REST API functions are no longer supported. Please use GraphQL equivalents."
   )
 }
@@ -17,7 +17,7 @@ meetup_call <- function(...) {
       "Use GraphQL functions instead."
     )
   )
-  stop(
+  cli::cli_abort(
     "REST API functions are no longer supported. Please use GraphQL equivalents."
   )
 }
@@ -29,7 +29,7 @@ meetup_call <- function(...) {
       "Use GraphQL functions instead."
     )
   )
-  stop(
+  cli::cli_abort(
     "REST API functions are no longer supported. Please use GraphQL equivalents."
   )
 }

@@ -31,7 +31,7 @@ gql_events <- function(status = c("upcoming", "past", "draft"), ...) {
   query_draft <- "draft" %in% status
 
   meetup_query_generator(
-    "find_events",
+    "get_events",
     # Pass status flags to GraphQL query
     queryUpcoming = query_upcoming,
     queryPast = query_past,
@@ -154,10 +154,24 @@ process_event_data <- function(dt) {
   data_to_tbl(dt) |>
     normalize_field_names() |>
     common_event_mappings() |>
-    (\(x) {
-      x$time <- anytime::anytime(x$dateTime)
-      x$venue_country <- x$country_name
-      x
-    })() |>
-    remove(country_name, dateTime, going, waiting)
+    dplyr::mutate(
+      datetime = anytime::anytime(datetime),
+      venue_country = country_name
+    ) |>
+    remove(country_name)
+}
+
+common_event_mappings <- function(.data) {
+  rename(
+    .data,
+    link = eventUrl,
+    featured_event_photo = featuredEventPhoto,
+    datetime = dateTime,
+    event_type = eventType,
+    venue_zip = venue_postalCode,
+    venue_lat = venue_lat,
+    venue_lon = venue_lon,
+    attendees = going,
+    waitlist = waiting
+  )
 }

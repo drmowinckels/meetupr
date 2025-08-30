@@ -21,7 +21,7 @@
 #' \url{https://www.meetup.com/api/schema/#Member}
 #' @examples
 #' \dontrun{
-#' rsvps <- get_event_rsvps(id = "103349942!chp")
+#' rsvps <- get_event_rsvps(id = "103349942")
 #' }
 #' @export
 #' @importFrom anytime anytime
@@ -35,41 +35,63 @@ get_event_rsvps <- function(
   gql_get_event_rsvps(
     id = id,
     .extra_graphql = extra_graphql
-  ) |>
-    process_rsvp_data()
+  )
 }
 
 gql_get_event_rsvps <- function(...) {
   meetup_query_generator(
-    "find_rsvps",
+    "get_rsvps",
     ...,
     cursor_fn = function(x) {
-      pageInfo <- x$data$event$rsvps$pageInfo
+      pageInfo <- x$data$event$tickets$pageInfo
       if (pageInfo$hasNextPage) list(cursor = pageInfo$endCursor) else NULL
     },
-    total_fn = function(x) x$data$event$rsvps$totalCount %||% Inf,
+    total_fn = function(x) x$data$event$tickets$count %||% Inf,
     extract_fn = function(x) {
-      lapply(x$data$event$rsvps$edges, function(item) item$node)
-    }
+      lapply(x$data$event$tickets$edges, function(item) item$node)
+    },
+    finalizer_fn = process_rsvp_data
   )
 }
 
-process_rsvp_data <- function(dt) {
+process_rsvp_data <- function(ret) {
+  if (is.null(ret) || length(ret) == 0) {
+    dt <- dplyr::tibble(
+      id = character(0),
+      status = character(0),
+      createdAt = character(0),
+      updatedAt = character(0),
+      user.id = character(0),
+      user.name = character(0),
+      user.memberUrl = character(0),
+      event.id = character(0),
+      event.title = character(0),
+      event.eventUrl = character(0)
+    )
+  } else {
+    dt <- data_to_tbl(ret)
+  }
+
   dt |>
     common_rsvp_mappings() |>
-    (\(x) {
-      if (!"member.id" %in% names(x) && "user.id" %in% names(x)) {
-        x <- rename(
-          x,
-          member_id = user.id,
-          member_name = user.name,
-          member_url = user.memberUrl
-        )
-      }
-      if (!"updated" %in% names(x) && "updatedAt" %in% names(x)) {
-        x <- rename(x, updated = updatedAt)
-      }
-      x
-    })() |>
-    process_datetime_fields(c("created", "updated"))
+    process_datetime_fields(
+      c("created", "updated")
+    )
+}
+
+common_rsvp_mappings <- function(.data) {
+  rename(
+    .data,
+    member_id = user.id,
+    member_name = user.name,
+    member_url = user.memberUrl,
+    event_id = event.id,
+    event_title = event.title,
+    event_url = event.eventUrl,
+    member_is_host = isHost,
+    guests = guestsCount,
+    response = status,
+    created = createdAt,
+    updated = updated
+  )
 }

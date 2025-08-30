@@ -27,7 +27,7 @@ get_event_comments <- function(
 
 gql_get_event_comments <- function(...) {
   meetup_query_generator(
-    "find_event_comments",
+    "get_event_comments",
     ...,
     cursor_fn = function(response) NULL, # Comments don't use cursor pagination
     total_fn = function(x) x$data$event$comments$count %||% Inf, # Changed from totalCount

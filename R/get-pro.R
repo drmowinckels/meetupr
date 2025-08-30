@@ -38,13 +38,12 @@ get_pro_groups <- function(
   gql_get_pro_groups(
     urlname = urlname,
     .extra_graphql = extra_graphql
-  ) |>
-    process_pro_group_data()
+  )
 }
 
 gql_get_pro_groups <- function(...) {
   meetup_query_generator(
-    "find_pro_groups",
+    "get_pro_groups",
     ...,
     cursor_fn = function(x) {
       pageInfo <- x$data$proNetworkByUrlname$groupsSearch$pageInfo
@@ -57,12 +56,13 @@ gql_get_pro_groups <- function(...) {
       lapply(x$data$proNetworkByUrlname$groupsSearch$edges, function(item) {
         item$node
       })
-    }
+    },
+    finalizer_fn = process_pro_group_data
   )
 }
 
 process_pro_group_data <- function(dt) {
-  dt |>
+  data_to_tbl(dt) |>
     rename(
       created = foundedDate,
       members = memberships.count,
@@ -92,13 +92,12 @@ get_pro_events <- function(
     urlname = urlname,
     status = status,
     .extra_graphql = extra_graphql
-  ) |>
-    process_pro_event_data()
+  )
 }
 
 gql_get_pro_events <- function(...) {
   meetup_query_generator(
-    "find_pro_events",
+    "get_pro_events",
     ...,
     cursor_fn = function(x) {
       pageInfo <- x$data$proNetworkByUrlname$eventsSearch$pageInfo
@@ -111,22 +110,22 @@ gql_get_pro_events <- function(...) {
       lapply(x$data$proNetworkByUrlname$eventsSearch$edges, function(item) {
         item$node
       })
-    }
+    },
+    finalizer_fn = process_pro_event_data
   )
 }
 
 
 process_pro_event_data <- function(dt) {
-  dt |>
+  data_to_tbl(dt) |>
     normalize_field_names() |>
     rename(
       link = eventUrl,
       event_type = eventType,
-      venue_zip = venue_postalCode
+      venue_zip = venue_postalCode,
+      datetime = dateTime
     ) |>
-    (\(x) {
-      x$time <- anytime::anytime(x$dateTime)
-      x
-    })() |>
-    remove(dateTime)
+    dplyr::mutate(
+      datetime = anytime::anytime(datetime)
+    )
 }

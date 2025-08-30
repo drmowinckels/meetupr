@@ -9,7 +9,6 @@ graphql_file <- function(
   .extra_graphql <- validate_extra_graphql(.extra_graphql)
 
   glued_query <- insert_extra_graphql(query, .extra_graphql)
-
   meetup_query(.query = glued_query, ...)
 }
 
@@ -27,7 +26,7 @@ meetup_query <- function(
   validate_graphql_variables(variables)
 
   req <- build_graphql_request(.query, variables)
-  result <- execute_graphql_request(req)
+  result <- httr2::req_perform(req)
 
   if (!is.null(result$errors)) {
     cli::cli_abort(
@@ -39,5 +38,5 @@ meetup_query <- function(
     )
   }
 
-  result
+  httr2::resp_body_json(result)
 }
