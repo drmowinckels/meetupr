@@ -1,23 +1,28 @@
-query singleEvent(
+query findEvents(
   $urlname: String!
-  $cursorUpcoming: String
-  $cursorPast: String
-  $cursorDraft: String
-  $queryUpcoming: Boolean = true
-  $queryPast: Boolean = true
-  $queryDraft: Boolean = true
-  $firstUpcoming: Int = 10000
-  $firstPast: Int = 10000
-  $firstDraft: Int = 10000
+  $cursorEvents: String
+  $first: Int = 100
+  $status: [EventStatus]
+  $afterDateTime: DateTime
+  $beforeDateTime: DateTime
 ) {
   groupByUrlname(urlname: $urlname) {
     id
-    upcomingEvents: upcomingEvents(input: { first: $firstUpcoming, after: $cursorUpcoming })
-      @include(if: $queryUpcoming) {
-      pageInfo {
-        ...pageInfos
+    name
+    events(
+      after: $cursorEvents
+      first: $first
+      filter: {
+        status: $status
+        afterDateTime: $afterDateTime
+        beforeDateTime: $beforeDateTime
       }
-      count
+    ) {
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      totalCount
       edges {
         cursor
         node {
@@ -25,62 +30,69 @@ query singleEvent(
         }
       }
     }
-    pastEvents: pastEvents(input: { first: $firstPast, after: $cursorPast })
-      @include(if: $queryPast) {
-      pageInfo {
-        ...pageInfos
-      }
-      count
-      edges {
-        cursor
-        node {
-          ...eventFields
-        }
-      }
-    }
-    draftEvents: draftEvents(input: { first: $firstDraft, after: $cursorDraft })
-      @include(if: $queryDraft) {
-      pageInfo {
-        ...pageInfos
-      }
-      count
-      edges {
-        cursor
-        node {
-          ...eventFields
-        }
-      }
-    }
+    << extra_graphql >>
   }
-}
-
-fragment pageInfos on PageInfo {
-  hasNextPage
-  endCursor
 }
 
 fragment eventFields on Event {
   id
   title
   eventUrl
-  createdAt
+  createdTime
   status
   dateTime
   duration
   description
-  eventType
-  going
-  waiting
-  venue {
+  
+  group {
     id
-    lat
-    lng
+    name
+    urlname
+  }
+  
+  venues {
+    id
     name
     address
     city
     state
     postalCode
     country
+    lat
+    lon
+    venueType
   }
+  
+  rsvps(first: 1) {
+    totalCount
+  }
+  
+  featuredEventPhoto {
+    baseUrl
+  }
+  
+  feeSettings {
+    required
+    amount
+    currency
+    accepts
+    refundPolicy {
+      notes
+      days
+    }
+  }
+  
+  speakerDetails {
+    name
+    description
+    photo {
+      baseUrl
+    }
+    socialNetworks {
+      service
+      url
+    }
+  }
+  
   << extra_graphql >>
 }

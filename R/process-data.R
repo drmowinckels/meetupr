@@ -30,12 +30,9 @@ remove <- function(.data, ...) {
   .data
 }
 
-data_to_tbl <- function(data) {
-  dplyr::bind_rows(
-    lapply(data, function(data_item) {
-      rlist::list.flatten(data_item)
-    })
-  )
+data_to_tbl <- function(dlist) {
+  lapply(dlist, rlist::list.flatten) |>
+    dplyr::bind_rows()
 }
 
 .date_helper <- function(time) {

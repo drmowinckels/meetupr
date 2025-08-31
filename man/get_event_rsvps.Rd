@@ -34,7 +34,7 @@ Get the RSVPs for a specified event
 }
 \examples{
 \dontrun{
-rsvps <- get_event_rsvps(id = "103349942!chp")
+rsvps <- get_event_rsvps(id = "103349942")
 }
 }
 \references{

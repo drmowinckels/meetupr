@@ -1,46 +1,45 @@
-query keywordSearch(
+query groupSearch(
   $query: String!
-  $lat: Float = 0
-  $lon: Float = 0
-  $radius: Int = 100000000
-  $first: Int = 50
-  $cursor: String
+  $after: String
+  $first: Int = 200
+  $lat: Float! = 0.0
+  $lon: Float! = 0.0
+  $radius: Float = 100000000.0
 ) {
-  keywordSearch(
-    input: { first: $first, after: $cursor }
+  groupSearch(
+    after: $after
+    first: $first
     filter: {
       query: $query
       lat: $lat
       lon: $lon
       radius: $radius
-      source: [GROUPS]
     }
   ) {
     pageInfo {
       hasNextPage
       endCursor
     }
-    count
+    totalCount
     edges {
       node {
-        result {
-          ... on Group {
-            id
-            name
-            urlname
-            link
-            description
-            city
-            state
-            country
-            isPrivate
-            stats {
-              memberCounts {
-                all
-              }
-            }
-            foundedDate
-          }
+        id
+        name
+        urlname
+        city
+        state
+        country
+        lat
+        lon
+        memberships {
+          totalCount
+        }
+        foundedDate
+        timezone
+        joinMode
+        isPrivate
+        membershipMetadata {
+          status
         }
       }
     }

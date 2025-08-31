@@ -1,3 +1,9 @@
+#' Validate GraphQL Variables
+#' This function checks if the provided GraphQL variables are named.
+#' If any variable is unnamed, it raises an error.
+#' @param variables A list
+#' @noRd
+#' @keywords internal
 validate_graphql_variables <- function(variables) {
   if (length(variables) > 0 && !rlang::is_named(variables)) {
     unnamed <- variables[names(variables) == ""]
@@ -15,6 +21,8 @@ validate_graphql_variables <- function(variables) {
 #' If the file has no extension, the string is appended to the end of the file name.
 #' @param x A character string representing the file name.
 #' @param p A character string or vector of strings to insert before the file extension.
+#' @noRd
+#' @keywords internal
 paste_before_ext <- function(x, p) {
   paste0(
     tools::file_path_sans_ext(x),
@@ -27,6 +35,8 @@ paste_before_ext <- function(x, p) {
 #' This function checks if a file with the given name already exists.
 #' If it does, it appends a numeric suffix before the file extension to create a unique filename.
 #' @param file_name A character string representing the desired file name.
+#' @noRd
+#' @keywords internal
 uq_filename <- function(file_name) {
   stopifnot(is.character(file_name) && length(file_name) == 1L)
   if (file.exists(file_name)) {
@@ -45,6 +55,8 @@ uq_filename <- function(file_name) {
 #' `country_name` will be set to `NA`.
 #' #' @param items A list of items (e.g., groups, events) where each item is a list or named list.
 #' #' @param get_country A function that takes an item and returns its 2-letter country code.
+#' @noRd
+#' @keywords internal
 add_country_name <- function(items, get_country) {
   lapply(items, function(item) {
     country_code <- get_country(item)
@@ -69,4 +81,25 @@ add_country_name <- function(items, get_country) {
 
     item
   })
+}
+
+#' Convert CamelCase to snake_case
+#' This function converts a character vector from CamelCase to snake_case.
+#' It is used to standardize column names in data frames.
+camel_to_snake <- function(x) {
+  gsub("([a-z0-9])([A-Z])", "\\1_\\2", x) |> tolower()
+}
+
+#' Convert Data Frame Column Names to snake_case
+#' This function takes a data frame and converts all its column names to snake_case.
+#' It uses the `camel_to_snake` function to perform the conversion.
+snake_case_names <- function(.data) {
+  names(.data) <- camel_to_snake(names(.data))
+  .data
+}
+
+remove_prefix <- function(.data, prefix) {
+  x <- names(.data)
+  names(.data) <- sub(paste0("^", prefix), "", x)
+  .data
 }

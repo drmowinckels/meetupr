@@ -1,21 +1,23 @@
-query eventAttendee(
-  $id: ID!,
-  $first: Int = 1000,
-  $cursor: String
+query eventAttendees(
+  $id: ID!
+  $after: String
+  $first: Int = 1000
 ) {
   event(id: $id) {
     id
     title
     dateTime
-    tickets(input: {after: $cursor, first: $first}) {
+    rsvps(after: $after, first: $first) {
       pageInfo {
         hasNextPage
         endCursor
       }
-      count
+      totalCount
       edges {
+        cursor
         node {
-          user {
+          id
+          member {
             id
             name
             bio
@@ -23,13 +25,12 @@ query eventAttendee(
             memberPhoto {
               baseUrl
             }
-            joinTime
-            timezone
             organizedGroupCount
-            << extra_graphql >>
           }
+          guestsCount
         }
       }
     }
+    << extra_graphql >>
   }
 }

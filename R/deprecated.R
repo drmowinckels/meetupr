@@ -34,11 +34,6 @@ meetup_call <- function(...) {
   )
 }
 
-get_meetup_attendees <- function(...) {
-  .Deprecated("get_event_attendees")
-  get_event_attendees(...)
-}
-
 get_meetup_comments <- function(...) {
   .Deprecated("get_event_comments")
   get_event_comments(...)

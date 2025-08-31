@@ -42,7 +42,7 @@ get_pro_groups <- function(
 }
 
 gql_get_pro_groups <- function(...) {
-  meetup_query_generator(
+  query_generator(
     "get_pro_groups",
     ...,
     cursor_fn = function(x) {
@@ -96,7 +96,7 @@ get_pro_events <- function(
 }
 
 gql_get_pro_events <- function(...) {
-  meetup_query_generator(
+  query_generator(
     "get_pro_events",
     ...,
     cursor_fn = function(x) {

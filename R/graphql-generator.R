@@ -1,4 +1,23 @@
-meetup_query_generator <- function(
+#' Generate a function to handle paginated GraphQL queries
+#' This function generates a function that handles paginated GraphQL queries.
+#' It takes a GraphQL query template, functions to extract cursor information,
+#' total count, and data extraction logic, and returns a function that
+#' automatically handles pagination and data aggregation.
+#'
+#' @param template_name The name of the GraphQL query template to use.
+#' @param cursor_fn A function that extracts cursor information from the response.
+#' It should return a list with cursor parameters or NULL if no more pages.
+#' @param total_fn A function that extracts the total count of items from the response.
+#' @param extract_fn A function that extracts the relevant data from the response.
+#' It should return a list of data items.
+#' @param ... Additional parameters to pass to the GraphQL query template.
+#' @param .extra_graphql Optional additional GraphQL fragments or queries to include.
+#' @param finalizer_fn A function to process the aggregated data before returning.
+#' Defaults to `data_to_tbl`.
+#' @return A tibble containing the aggregated data from all pages.
+#' @noRd
+#' @keywords internal
+query_generator <- function(
   template_name,
   cursor_fn,
   total_fn,
@@ -10,13 +29,12 @@ meetup_query_generator <- function(
   all_data <- list()
   cursor <- NULL
 
-  response <- graphql_file(
+  response <- execute_from_template(
     template_name,
     ...,
     cursor = cursor,
     .extra_graphql = .extra_graphql
   )
-
   total <- total_fn(response)
   repeat {
     current_data <- extract_fn(response)
@@ -31,7 +49,7 @@ meetup_query_generator <- function(
       break
     }
 
-    response <- graphql_file(
+    response <- execute_from_template(
       template_name,
       ...,
       cursor = cursor_info$cursor,

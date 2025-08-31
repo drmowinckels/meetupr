@@ -11,20 +11,20 @@ validate_extra_graphql <- function(.extra_graphql) {
   .extra_graphql
 }
 
-get_graphql_file_path <- function(.file) {
+get_execute_from_template_path <- function(.file) {
   file_path <- system.file(
     file.path("graphql", paste0(.file, ".graphql")),
     package = "meetupr"
   )
 
   if (!file.exists(file_path)) {
-    cli::cli_abort("GraphQL file not found: {.path {file_path}")
+    cli::cli_abort("GraphQL file not found: {.path {file_path}}")
   }
 
   file_path
 }
 
-read_graphql_file <- function(file_path) {
+read_execute_from_template <- function(file_path) {
   tryCatch(
     {
       readChar(file_path, file.info(file_path)$size)

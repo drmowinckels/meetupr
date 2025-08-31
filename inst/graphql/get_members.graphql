@@ -1,17 +1,17 @@
 query members(
-  $urlname: String!,
-  $first: Int = 1000,
-  $cursor: String
-  ) {
+  $urlname: String!
+  $after: String
+  $first: Int = 200
+) {
   groupByUrlname(urlname: $urlname) {
     id
     name
-    memberships ( input: {first: $first, after: $cursor}) {
+    memberships(after: $after, first: $first) {
       pageInfo {
         hasNextPage
         endCursor
       }
-      count
+      totalCount
       edges {
         node {
           id
@@ -24,8 +24,6 @@ query members(
         metadata {
           status
           role
-          joinedDate
-          mostRecentVisitDate
         }
       }
     }

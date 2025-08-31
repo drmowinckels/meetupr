@@ -1,0 +1,37 @@
+query eventRSVPs(
+  $id: ID!
+  $after: String
+  $first: Int = 1000
+) {
+  event(id: $id) {
+    id
+    title
+    dateTime
+    rsvps(after: $after, first: $first) {
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      totalCount
+      edges {
+        cursor
+        node {
+          id
+          member {
+            id
+            name
+            bio
+            memberUrl
+            memberPhoto {
+              baseUrl
+            }
+            organizedGroupCount
+          }
+          guestsCount
+          status
+        }
+      }
+    }
+    << extra_graphql >>
+  }
+}

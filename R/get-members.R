@@ -1,6 +1,7 @@
 #' Get the members from a meetup group
 #'
 #' @template urlname
+#' @param max_results Maximum number of results to return. Default: 200
 #' @param ... Should be empty. Used for parameter expansion
 #' @template extra_graphql
 #' @return A tibble with the following columns:
@@ -10,66 +11,96 @@
 #'    * photo_link
 #'    * status
 #'    * role
-#'    * created
+#'    * joined
 #'    * most_recent_visit
 #' @export
 get_members <- function(
   urlname,
+  max_results = 200,
   ...,
   extra_graphql = NULL
 ) {
   ellipsis::check_dots_empty()
 
-  dt <- gql_get_members(
+  gql_get_members(
     urlname = urlname,
+    first = min(max_results, 200),
+    max_results = max_results,
     .extra_graphql = extra_graphql
   )
-
-  if (check_empty_response(dt)) {
-    return(NULL)
-  }
-
-  dt <- rename(
-    dt,
-    id = member.id,
-    name = member.name,
-    member_url = member.memberUrl,
-    photo_link = member.memberPhoto.baseUrl,
-    status = status,
-    role = role,
-    created = joined,
-    most_recent_visit = lastAccessed
-  )
-
-  process_datetime_fields(dt, c("created", "most_recent_visit"))
 }
 
-gql_get_members <- function(...) {
-  meetup_query_generator(
-    "find_members",
+gql_get_members <- function(max_results = 200, ...) {
+  results_fetched <- 0
+
+  query_generator(
+    "get_members",
     ...,
     cursor_fn = function(x) {
       pageInfo <- x$data$groupByUrlname$memberships$pageInfo
-      if (pageInfo$hasNextPage) list(cursor = pageInfo$endCursor) else NULL
+      if (
+        !is.null(pageInfo) &&
+          pageInfo$hasNextPage &&
+          results_fetched < max_results
+      ) {
+        current_page_size <- length(x$data$groupByUrlname$memberships$edges)
+        results_fetched <<- results_fetched + current_page_size
+
+        list(after = pageInfo$endCursor)
+      } else {
+        NULL
+      }
     },
     total_fn = function(x) {
-      x$data$groupByUrlname$memberships$totalCount %||% Inf
+      min(x$data$groupByUrlname$memberships$totalCount %||% 0, max_results)
     },
     extract_fn = function(x) {
-      lapply(x$data$groupByUrlname$memberships$edges, identity)
+      edges <- x$data$groupByUrlname$memberships$edges
+      if (!is.null(edges) && length(edges) > 0) {
+        lapply(edges, identity)
+      } else {
+        list()
+      }
+    },
+    finalizer_fn = function(ret) {
+      if (is.null(ret) || length(ret) == 0) {
+        return(create_empty_members_tibble())
+      }
+      # Ensure we don't exceed max_results
+      if (length(ret) > max_results) {
+        ret <- ret[1:max_results]
+      }
+      process_members_data(ret)
     }
   )
 }
 
-process_member_data <- function(dt) {
-  dt |>
-    common_member_mappings()
+create_empty_members_tibble <- function() {
+  dplyr::tibble(
+    id = character(0),
+    name = character(0),
+    url = character(0),
+    photo = character(0),
+    status = character(0),
+    role = character(0)
+  )
 }
 
-common_member_mappings <- function(.data) {
+process_members_data <- function(dt) {
+  data_to_tbl(dt) |>
+    normalize_field_names() |>
+    snake_case_names() |>
+    members_mappings()
+}
+
+members_mappings <- function(.data) {
   rename(
     .data,
-    url = memberUrl,
-    photo = memberPhoto.baseUrl
+    id = node_id,
+    name = node_name,
+    url = node_member_url,
+    photo = node_member_photo_base_url,
+    status = metadata_status,
+    role = metadata_role
   )
 }

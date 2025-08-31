@@ -1,5 +1,5 @@
 meetup_api_prefix <- function() {
-  Sys.getenv("MEETUP_API_URL", "https://api.meetup.com/gql")
+  Sys.getenv("MEETUP_API_URL", "https://api.meetup.com/gql-ext")
 }
 
 #' Create a Meetup OAuth Client
@@ -117,38 +117,4 @@ meetupr_req <- function(cache = TRUE, ...) {
         "Unknown Meetup API error"
       }
     })
-}
-
-build_graphql_request <- function(query, variables = list()) {
-  # Ensure variables is always a proper object, not an array
-  if (length(variables) == 0 || is.null(variables)) {
-    variables <- structure(list(), names = character(0))
-  }
-
-  # Debug the request body if enabled
-  if (nzchar(Sys.getenv("MEETUPR_DEBUG"))) {
-    body <- list(
-      query = query,
-      variables = variables
-    ) |>
-      jsonlite::toJSON(
-        auto_unbox = TRUE,
-        pretty = TRUE
-      ) |>
-      strsplit("\n|\\\\n") |>
-      unlist()
-    cli::cli_alert_info("DEBUG: JSON to be sent:")
-    cli::cli_code(
-      body
-    )
-  }
-
-  meetupr_req() |>
-    httr2::req_body_json(
-      list(
-        query = query,
-        variables = variables
-      ),
-      auto_unbox = TRUE
-    )
 }
